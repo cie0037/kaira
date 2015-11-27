@@ -898,7 +898,16 @@ class OperationManager(gtk.VBox):
         button = gtk.Button("Load source")
         button.connect("clicked", lambda w: self._cb_load())
         toolbar.pack_start(button, False, False)
-
+        
+        #new group tracelog
+        button = gtk.Button("Load group")
+        button.connect("clicked", lambda w: self._cb_load_in_group())
+        toolbar.pack_start(button, False, False)
+        
+        button = gtk.Button("Create group")
+        button.connect("clicked", lambda w: self._cb_create_group())
+        toolbar.pack_start(button, False, False)
+       
         button = gtk.Button("Disable filter")
         button.connect("clicked", lambda w: self._cb_filter_off())
         toolbar.pack_start(button, False, False)
@@ -913,6 +922,7 @@ class OperationManager(gtk.VBox):
         haling = gtk.Alignment(0, 0, 0, 0)
         haling.set_padding(0, 5, 2, 0)
         haling.add(self.sources_title)
+    
         vbox.pack_start(haling, False, False)
 
         self.sources_view = SourcesRepositoryView(
@@ -964,6 +974,9 @@ class OperationManager(gtk.VBox):
 
     def load_source(self, filename):
         return self.app.sources_repository.load_source(filename, self.app)
+    
+    def load_source_in_group(self, flename):
+        return self.sources_repository.load_source(filename, self)
 
     def _load_operations(self):
         """Load modules (operations). It returns a column with all loaded
@@ -1007,7 +1020,99 @@ class OperationManager(gtk.VBox):
                 self.load_source(filename)
         finally:
             dialog.destroy()
+        
+    
+    def _cb_load_in_group(self):
+        #run button 'Load in group'
+        # file dialog window
+        window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        window.set_title("Load group")
+        window.set_size_request(600,480)
 
+        vbox = gtk.VBox()
+        vbox.show()
+        window.add(vbox)
+        
+        fileDialog = gtk.FileChooserWidget(gtk.FILE_CHOOSER_ACTION_OPEN, None)
+        fileDialog.set_select_multiple(True)
+        fileDialog.show()  
+        vbox.pack_start(fileDialog, True, True, 5) 
+        #add filters
+        for filter in datatypes.get_load_file_filters():
+           fileDialog.add_filter(filter)
+            
+        #GUI              
+        hbox = gtk.HBox() 
+        hbox.show()
+        
+        label = gtk.Label("Regex: ")
+        label.show()
+        hbox.pack_start(label,False, False, 0)
+        
+        entry = gtk.Entry()
+        entry.show()
+        hbox.pack_start(entry, True, True, 0)
+        
+        button = gtk.Button("Select")
+        button.connect("clicked", lambda w:_cb_select_file(entry.get_text()))
+        
+        def _cb_select_file(text):
+            #dodelat vyber souboru
+            current_folder_file = fileDialog.get_filenames()
+            for file in current_folder_file:
+                result = re.findall("w\[text]\w+",file)
+                if len(result) > 0:
+                    fileDialog.select_file(file)
+                else:
+                    entry.set_text("chyba")
+            
+        button.show()
+        hbox.pack_start(button, False, False, 0)
+        vbox.pack_start(hbox, False, False, 5) 
+        
+        buttonBox = gtk.HButtonBox()
+        buttonBox.set_layout(gtk.BUTTONBOX_END)
+        buttonBox.show()
+        
+        button = gtk.Button("Open")
+        button.set_use_stock(False)
+        button.show()
+        buttonBox.pack_end(button, False, False, 0)
+        
+        button = gtk.Button("Cancel")
+        button.set_use_stock(False)
+        button.show()
+        buttonBox.pack_end(button, False, False, 0)
+        
+        vbox.pack_start(buttonBox,False, False, 5)
+        
+        window.show()
+        """        
+        dialog = gtk.FileChooserDialog("Source load in group",
+                                       self.app.window,
+                                       gtk.FILE_CHOOSER_ACTION_OPEN,
+                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                       gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        dialog.set_select_multiple(True)#select multiple cie0037
+        
+        try: 
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                self._cb_filter_off()
+                filenames = dialog.get_filenames()
+                for filename in filenames:
+                    self.load_source(filename)
+                    
+        finally:
+            
+            dialog.destroy()"""
+    
+                
+                
+    def _cb_create_group(self):
+        ce
+        
     def _cb_operation_selected(self, operation):
         if self.full_view.operation == operation:
             return
