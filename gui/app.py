@@ -59,6 +59,7 @@ class App:
         self.neteditor = None
         self.project = None
         self.sources_repository = extensions.SourcesRepository()
+        self.group_repository = extensions.GroupRepository()
         self._open_welcome_tab()
         self.grid_size = 6
         self.settings = self.load_settings()
@@ -86,13 +87,18 @@ class App:
                     self.set_project(loader.load_project(filename))
                 else:
                     source = self.sources_repository.load_source(filename, self)
+                    group = self.group_repository.load_group(filename, self)
+                    if group is None:
+                        operation = None
+                        self.console_write("Do no know how to load '{0}' \n".format(filename), "error")
                     if source is None:
                         operation = None
                         self.console_write("Do no know how to load '{0}' \n".format(filename), "error")
                     if operation:
                         operation.parameters[arg_index].attach_source(source, 0)
+                        operation.parameters[arg_index].attach_group(group, 0)
                         arg_index += 1
-                    if len(self.sources_repository) > 0:
+                    if len(self.sources_repository ) > 0 or (self.group_repository) > 0:
                         self.run_tool_window()
             else:
                 self.console_write("File '{0}' not found\n".format(filename), "error")
