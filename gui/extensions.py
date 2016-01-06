@@ -5,7 +5,7 @@
 #    This file is part of Kaira.
 #
 #    Kaira is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
+#    it under the terms of the GNU General PubSourcelic License as published by
 #    the Free Software Foundation, version 3 of the License, or
 #    (at your option) any later version.
 #
@@ -25,6 +25,7 @@ import paths
 import os
 import sys
 import imp
+import re
 
 from events import EventSource, EventCallbacksList
 import datatypes
@@ -32,6 +33,7 @@ from mainwindow import Tab
 import utils
 
 operations = {} # the list of all loaded operations
+current_folder = "" #current folder from group sources
 
 # *****************************************************************************
 # Sources
@@ -110,7 +112,7 @@ class SourceView(gtk.Alignment, EventSource):
     def __init__(self, source, app):
         gtk.Alignment.__init__(self, 0, 0, 1, 1)
         EventSource.__init__(self)
-
+        
         self.source = source
         self.source.set_callback("source-name-changed",
                                  lambda old, new: self.entry_name.set_text(new))
@@ -120,26 +122,34 @@ class SourceView(gtk.Alignment, EventSource):
 
         self.set_padding(5, 0, 10, 10)
 
-        table = gtk.Table(2, 3, False)
+        table = gtk.Table(3, 3, False)
         table.set_border_width(2)
         table.set_col_spacing(0, 10)
-        table.set_col_spacing(1, 2)
-
+        table.set_col_spacing(1, 2)        
+        
         # name of source
         self.entry_name = gtk.Entry()
         self.entry_name.set_size_request(40, -1)
         self.entry_name.set_editable(False)
         self.entry_name.set_text(self.source.name)
         table.attach(self.entry_name, 0, 1, 0, 1)
-
+        
+        # check button
+        self.check_button = gtk.CheckButton("Group",True)
+        self.check_button.set_active(False)
+        self.check_button.connect("toggled", self.app.sources_repository.check_button, self.check_button.get_active())
+        self.check_button.show()
+        table.attach(self.check_button, 0, 1, 1, 2) 
+    
         # name of data type
         label = gtk.Label()
         label.set_alignment(0, 0)
         label.set_markup("<i>{0}</i>".format(self.source.type.name))
-        table.attach(label, 0, 1, 1, 2)
+        table.attach(label, 0, 1, 2, 3)
 
         self.btns_group1 = []
         self.btns_group2 = []
+        
         # attach button
         button = gtk.Button("Attach")
         button.connect(
@@ -187,7 +197,7 @@ class SourceView(gtk.Alignment, EventSource):
         frame.add(table)
 
         self.add(frame)
-
+        
     def _menu_handler(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             widget.popup(None, None, None, event.button, event.time)
@@ -247,6 +257,7 @@ class SourceView(gtk.Alignment, EventSource):
             self.item_dispose.set_sensitive(True)
 
     def _cb_load(self):
+        print(self.source.name)
         self.source.data = load_source(
             self.source.name, self.app, self.source.settings).data
         self._lock_buttons()
@@ -264,12 +275,12 @@ class SourceView(gtk.Alignment, EventSource):
             self.tabview.close()
         self.emit_event("delete-source", self.source)
 
-
 class SourcesRepository(object, EventSource):
 
     def __init__(self):
         EventSource.__init__(self)
         self._sources = []
+        self.button = False
 
     def __len__(self):
         return len(self._sources)
@@ -312,7 +323,7 @@ class SourcesRepository(object, EventSource):
             self.add(source)
             return source
         return None
-
+    
     def get_sources(self, filter=None):
         """Return a list of loaded sources. If the filter is not empty,
         the sources are filtered by the type.
@@ -325,7 +336,16 @@ class SourcesRepository(object, EventSource):
         return [source for source in self._sources
                 if filter is None or source.type in filter]
 
+    def get_list(self):
+        return [source for source in self._sources]
+    
+    def check_button(self, button, value):
+        print(button.get_active())
+        self.button = button.get_active()
 
+    def get_check_button(self):
+        return self.button    
+    
 class SourcesRepositoryView(gtk.VBox, EventSource):
 
     def __init__(self, repository, app):
@@ -799,6 +819,12 @@ class OperationFullView(gtk.VBox, EventSource):
         halign.set_padding(0, 0, 2, 0)
         halign.add(label)
         hbox.pack_start(halign, True, True)
+        
+        # button unpack
+        button = gtk.Button(" Unpack ")
+        button.connect("clicked", lambda w: self._cb_unpack_source(source_group))
+        hbox.pack_start(button, False, False)
+        
 
         # button run
         button = gtk.Button("Run operation")
@@ -867,7 +893,7 @@ class OperationFullView(gtk.VBox, EventSource):
 # Operation manager
 
 class OperationManager(gtk.VBox):
-
+    
     def __init__(self, app):
         gtk.VBox.__init__(self)
 
@@ -881,6 +907,9 @@ class OperationManager(gtk.VBox):
         self.events.set_callback(
             app.sources_repository, "source-removed",
             self._cb_detach_source_from_all_operations)
+            
+        # group repository
+        self.events.set_callback(app.group_repository, "source-removed", self._cb_detach_from_oprations)
 
         # full view of selected operation
         self.full_view = OperationFullView(self.app)
@@ -899,11 +928,12 @@ class OperationManager(gtk.VBox):
         button.connect("clicked", lambda w: self._cb_load())
         toolbar.pack_start(button, False, False)
         
-        #new group tracelog
+        # new load in group tracelog
         button = gtk.Button("Load group")
-        button.connect("clicked", lambda w: self._cb_load_in_group())
+        button.connect("clicked", lambda w: self._cb_select_group())
         toolbar.pack_start(button, False, False)
         
+        # new create group from load sorce
         button = gtk.Button("Create group")
         button.connect("clicked", lambda w: self._cb_create_group())
         toolbar.pack_start(button, False, False)
@@ -933,13 +963,25 @@ class OperationManager(gtk.VBox):
         self.events.set_callback(
             self.sources_view,
             "source-data-changed", self._cb_source_data_changed)
-
+         
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scw.add_with_viewport(self.sources_view)
 
         vbox.pack_start(scw, True, True)
+           
+        #new group view
+        self.group_view = GroupRepositoryView(app.group_repository, self.app)
+        self.__objects_with_callbacks.append(self.group_view)
+        self.events.set_callback(self.group_view, "attach-source", self._cb_attach_group)
+        self.events.set_callback(self.group_view, "source-data-changed", self._cb_changed_group)
 
+        scrolledWindow = gtk.ScrolledWindow()
+        scrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolledWindow.add_with_viewport(self.group_view)
+        
+        vbox.pack_start(scrolledWindow, True, True)
+        
         paned1 = gtk.HPaned()
         paned1.pack1(vbox, resize=True)
 
@@ -975,8 +1017,8 @@ class OperationManager(gtk.VBox):
     def load_source(self, filename):
         return self.app.sources_repository.load_source(filename, self.app)
     
-    def load_source_in_group(self, flename):
-        return self.sources_repository.load_source(filename, self)
+    def load_group(self, filenames):
+        return self.app.group_repository.load_group(filenames, self.app)
 
     def _load_operations(self):
         """Load modules (operations). It returns a column with all loaded
@@ -1022,8 +1064,8 @@ class OperationManager(gtk.VBox):
             dialog.destroy()
         
     
-    def _cb_load_in_group(self):
-        #run button 'Load in group'
+    def _cb_select_group(self):
+        # run button 'Load in group'
         # file dialog window
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         window.set_title("Load group")
@@ -1033,19 +1075,19 @@ class OperationManager(gtk.VBox):
         vbox.show()
         window.add(vbox)
         
-        fileDialog = gtk.FileChooserWidget(gtk.FILE_CHOOSER_ACTION_OPEN, None)
-        fileDialog.set_select_multiple(True)
-        fileDialog.show()  
-        vbox.pack_start(fileDialog, True, True, 5) 
+        file_dialog = gtk.FileChooserWidget(gtk.FILE_CHOOSER_ACTION_OPEN, None)
+        file_dialog.set_select_multiple(True)
+        file_dialog.show()  
+        vbox.pack_start(file_dialog, True, True, 5) 
         #add filters
-        for filter in datatypes.get_load_file_filters():
-           fileDialog.add_filter(filter)
+        #for filter in datatypes.get_load_file_filters():
+        #   fileDialog.add_filter(filter)
             
         #GUI              
         hbox = gtk.HBox() 
         hbox.show()
         
-        label = gtk.Label("Regex: ")
+        label = gtk.Label("Regular expression: ")
         label.show()
         hbox.pack_start(label,False, False, 0)
         
@@ -1054,18 +1096,19 @@ class OperationManager(gtk.VBox):
         hbox.pack_start(entry, True, True, 0)
         
         button = gtk.Button("Select")
-        button.connect("clicked", lambda w:_cb_select_file(entry.get_text()))
+        button.connect("clicked", lambda w: _cb_select_file(entry.get_text()))
         
         def _cb_select_file(text):
-            #dodelat vyber souboru
-            current_folder_file = fileDialog.get_filenames()
-            for file in current_folder_file:
-                result = re.findall("w\[text]\w+",file)
-                if len(result) > 0:
-                    fileDialog.select_file(file)
-                else:
-                    entry.set_text("chyba")
+            current_folder = file_dialog.get_current_folder()
+            print(current_folder)
+            file_dialog.select_all()
+            self.filenames = file_dialog.get_filenames()
             
+            for file in self.filenames:
+                subst = file[file.rfind("/"):len(file)]
+                if  not re.search(text,subst):
+                    file_dialog.unselect_filename(file)
+                
         button.show()
         hbox.pack_start(button, False, False, 0)
         vbox.pack_start(hbox, False, False, 5) 
@@ -1075,11 +1118,13 @@ class OperationManager(gtk.VBox):
         buttonBox.show()
         
         button = gtk.Button("Open")
+        button.connect("clicked", lambda w: self._cb_load_in_group(window, file_dialog))
         button.set_use_stock(False)
         button.show()
         buttonBox.pack_end(button, False, False, 0)
         
         button = gtk.Button("Cancel")
+        button.connect("clicked", lambda w: window.destroy())
         button.set_use_stock(False)
         button.show()
         buttonBox.pack_end(button, False, False, 0)
@@ -1087,32 +1132,24 @@ class OperationManager(gtk.VBox):
         vbox.pack_start(buttonBox,False, False, 5)
         
         window.show()
-        """        
-        dialog = gtk.FileChooserDialog("Source load in group",
-                                       self.app.window,
-                                       gtk.FILE_CHOOSER_ACTION_OPEN,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                       gtk.STOCK_OPEN, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        dialog.set_select_multiple(True)#select multiple cie0037
-        
-        try: 
-            response = dialog.run()
-            if response == gtk.RESPONSE_OK:
-                self._cb_filter_off()
-                filenames = dialog.get_filenames()
-                for filename in filenames:
-                    self.load_source(filename)
-                    
-        finally:
             
-            dialog.destroy()"""
-    
-                
+    def _cb_load_in_group(self, window, file_dialog):
+        try:
+            files = file_dialog.get_filenames()
+            self.load_group(files)
+        finally:
+            window.destroy()
                 
     def _cb_create_group(self):
-        ce
+        filenames = []
+        if self.app.sources_repository.get_check_button() == True:
+            sources = self.app.sources_repository.get_list()
+            for source in sources:
+                filenames.append(source.name)
+                
+            self.app.group_repository.load_group(filenames, self.app)
         
+                
     def _cb_operation_selected(self, operation):
         if self.full_view.operation == operation:
             return
@@ -1151,9 +1188,14 @@ class OperationManager(gtk.VBox):
             else:
                 operation.select_argument(None, None)
                 self.sources_view.set_filter(None)
+
         else:
             self.app.show_message_dialog(
                 "No operation is chosen.", gtk.MESSAGE_INFO)
+    
+    def _cb_attach_group(self, listSource):
+        for source in listSource:
+            self._cb_attach_source(source)
 
     def _cb_detach_source(self, source):
         operation = self.full_view.operation
@@ -1179,6 +1221,10 @@ class OperationManager(gtk.VBox):
                     psource = param.get_source()
                     if psource is not None and psource == source:
                         param.detach_source()
+                        
+    def _cb_detach_from_oprations(self, listSource):
+        for source in listSource:
+            self._cb_detach_source_from_all_operations( source)
 
     def _cb_source_data_changed(self, source):
         for operation in self.loaded_operations:
@@ -1188,7 +1234,12 @@ class OperationManager(gtk.VBox):
                     if arg_source == source:
                         argument.emit_event("argument-changed")
 
-
+    def _cb_changed_group(self, source):
+        self._cb_source_data_changed(source)
+            
+    def unpack_group(self, filenames):
+        for filename in filenames:
+            self.load_source(filename)
 # *****************************************************************************
 # Modules methods
 
@@ -1205,7 +1256,6 @@ def load_source(filename, app, settings=None):
     information
 
     """
-
     # TODO: Catch IOError
     suffix = utils.get_filename_suffix(filename)
     loader = datatypes.get_loader_by_suffix(suffix)
@@ -1218,6 +1268,27 @@ def load_source(filename, app, settings=None):
     return Source(
         filename, datatypes.get_type_by_suffix(suffix), data, True, settings)
 
+    
+def load_group(filenames, app, settings = None):
+    listSource = []
+    
+    for filename in filenames:
+        if type(filename) == Source:
+            print(filename.name)
+            suffix = utils.get_filename_suffix(filename.name)
+        else:
+            suffix = utils.get_filename_suffix(filename)        
+        loader = datatypes.get_loader_by_suffix(suffix)
+        if loader is None:
+            return None
+        data, settings = loader(filename, app, settings)
+        if data is  None:
+            return None
+        source = Source(filename, datatypes.get_type_by_suffix(suffix), data, True, settings)
+        listSource.append(source)
+        
+    return listSource
+            
 def add_operation(operation):
     operations[operation.name] = operation
 
@@ -1231,3 +1302,301 @@ def load_extensions():
             # the file is *.py and it exists
             imp.load_source("extension_" + name, fullname)
     sys.path.remove(paths.EXTENSIONS_DIR)
+    
+#---------------------------------------------------------------------
+#           GROUP - view, repozitory, repositoryView                  
+#---------------------------------------------------------------------
+class Group:
+    def __init__(self):
+        self.group = []
+        
+    def add(self, source):
+        self.group.append(source)
+
+    def remove(self, source):
+        self.group.remove(self, source)
+        
+    def getList(self):
+        return self.group        
+    
+    def __getitem__(self, index):
+        return self.group[index]
+    
+    def getindex(self, source):
+        return self.group.index(source)
+      
+    def clear(self):
+        for item in self.group.getList():
+            remove(item)
+    
+class GroupView(gtk.Alignment, EventSource):
+    
+    def __init__(self, listSource, app):
+        gtk.Alignment.__init__(self, 0, 0, 1, 1)
+        EventSource.__init__(self)
+        
+        self.listSource = listSource
+        
+        '''for source in self.listSource:
+            source.set_callback("source-name-changed", lambda old, new: self.entry_name.set_text(new))'''
+    
+        self.app = app
+        self.tabview = None
+
+        self.set_padding(5, 0, 10, 10)
+
+        self.table = gtk.Table(3, 3, False)
+        self.table.set_border_width(2)
+        self.table.set_col_spacing(0, 10)
+        self.table.set_col_spacing(1, 2)
+        
+        # frame group
+        self.frame = gtk.Frame()
+        self.frame.set_shadow_type(gtk.SHADOW_OUT)
+        self.frame.show()
+        self.table.attach(self.frame, 0, 4, 0, 4)
+    
+        # name of data type
+        label = gtk.Label()
+        label.set_alignment(0, 0)
+        label.set_markup("<i> Kaira tracelog group</i>")
+        label.show()
+        self.table.attach(label, 0, 1, 2, 3)
+        
+        label = gtk.Label()
+        label.set_alignment(0, 0)
+        label.set_markup(" ")
+        label.show()
+        self.table.attach(label, 0, 1, 3, 4)
+        
+        self.btns_group1 = []
+        self.btns_group2 = []
+        
+        # unpack button
+        button = gtk.Button("Unpack")
+        button.connect("clicked", lambda w: self._cb_unpack_list_source(self.listSource))
+        self.table.attach(button, 0, 1, 0, 2)
+        self.btns_group1.append(button)
+        
+        # attach button
+        button = gtk.Button("Attach")
+        button.connect(
+            "clicked", lambda w: self.emit_event("attach-source", self.source))
+        self.table.attach(button, 1, 2, 0, 2, xoptions=gtk.FILL)
+        self.btns_group1.append(button)
+        
+        # show button
+        button = gtk.Button("Show")
+        button.connect(
+            "clicked", lambda w: self._cb_show())
+        self.table.attach(button, 2, 3, 0, 2, xoptions=gtk.FILL)
+        self.btns_group1.append(button)
+
+        # source menu
+        menu = gtk.Menu()
+
+        item = gtk.MenuItem("Store")
+        item.connect("activate", lambda w: self._cb_store())
+        self.btns_group1.append(item)
+        menu.append(item)
+        self.item_reload = gtk.MenuItem("Reload")
+        self.item_reload.connect("activate", lambda w: self._cb_load())
+        #self.item_reload.set_sensitive(self.source.stored)
+        menu.append(self.item_reload)
+        menu.append(gtk.SeparatorMenuItem())
+
+        self.item_dispose = gtk.MenuItem("Dispose")
+        self.item_dispose.connect("activate", lambda w: self._cb_dispose())
+        #self.item_dispose.set_sensitive(self.source.stored)
+        self.btns_group1.append(self.item_dispose)
+        menu.append(self.item_dispose)
+
+        item = gtk.MenuItem("Delete")
+        item.connect("activate", lambda w: self._cb_delete())
+        menu.append(item)
+        menu.show_all()
+
+        menu_btn = gtk.Button(">");
+        menu_btn.connect_object("event-after", self._menu_handler, menu)
+        self.table.attach(menu_btn, 3, 4, 0, 2, xoptions=0)
+        self.emit_event("delete-source", self.listSource)
+        
+        # source component
+        frame = gtk.Frame()
+        frame.set_shadow_type(gtk.SHADOW_OUT)
+        frame.add(self.table)
+
+        self.add(frame)
+ 
+    def _menu_handler(self, widget, event):
+        if event.type == gtk.gdk.BUTTON_PRESS:
+            widget.popup(None, None, None, event.button, event.time)
+            return True
+        return False
+
+    def _cb_show(self):
+        if self.tabview is None:
+            type = self.source.type
+            view = type.get_view(self.source.data, self.app)
+            if view is None:
+                return
+            tabname = "{0} ({1})".format(
+                self.source.type.short_name, os.path.basename(self.source.name))
+            self.tabview = Tab(tabname, view)
+
+            # modify close meth
+            origin_close = self.tabview.close
+            def new_close():
+                origin_close()
+                self.tabview = None
+            self.tabview.close = new_close
+            self.app.window.add_tab(self.tabview)
+        else:
+            self.app.window.switch_to_tab(self.tabview)
+
+    def _lock_buttons(self):
+        for btn in self.btns_group1:
+            btn.set_sensitive(self.listSource is not None)
+        for btn in self.btns_group2:
+            btn.set_sensitive(self.listSource is None)
+
+    def _cb_store(self):
+        if len(self.source.type.savers) == 0:
+            self.app.show_message_dialog(
+                    "The type '{0}' cannot be saved.".format(
+                        self.source.type.name),
+                    gtk.MESSAGE_WARNING)
+            return
+        dialog = gtk.FileChooserDialog("Source store",
+                                       self.app.window,
+                                       gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                       gtk.STOCK_SAVE, gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        dialog.add_filter(datatypes.get_save_file_filter(self.source.type))
+
+        try:
+            response = dialog.run()
+            filename = dialog.get_filename()
+        finally:
+            dialog.destroy()
+
+        if load_sourceresponse == gtk.RESPONSE_OK:
+            self.source.store(filename, self.app)
+            self.item_reload.set_sensitive(True)
+            self.item_dispose.set_sensitive(True)
+
+    def _cb_load(self):
+        print(len(self.listSource))
+        list = load_group(self.listSource, self.app)
+        self.listSource = list
+        print(len(list))
+        print(len(self.listSource))
+        self._lock_buttons()
+        self.emit_event("source-data-changed", self.listSource)
+
+    def _cb_dispose(self):
+        self.listSource = None
+        self._lock_buttons()
+        if self.tabview is not None:
+            self.tabview.close()
+        self.emit_event("source-data-changed", self.listSource)
+
+    def _cb_delete(self):
+        if self.tabview is not None:
+            self.tabview.close()
+        self.emit_event("delete-source", self.listSource)
+
+    def add_source(self, source):
+        self.listSource.append(source)
+       
+    def _cb_unpack_list_source(self, listSource):
+        filenames = []
+        self.table.hide()
+        for source in listSource:
+            filenames.append(source.name)
+        
+        for filename in filenames:
+            self.app.sources_repository.load_source(filename, self.app)
+
+class GroupRepository(object, EventSource):
+    
+    def __init__(self):
+        EventSource.__init__(self)
+        self.listSource = []
+        
+    def add(self, source):
+        self.listSource.append(source)
+        self.emit_event("source-added", source)
+        
+    def remove(self, source):
+        self.listSource.remove(source)
+    
+    def get_list(self):
+        return [source for source in self.listSource]
+    
+    def load_group(self, filenames, app, setings = None):
+        self.listSource = load_group(filenames, app, setings)
+        self.emit_event("source-added", self.listSource)
+        
+        return self.listSource
+
+class GroupRepositoryView(gtk.VBox, EventSource):
+    
+    def __init__(self, repository, app):
+        gtk.VBox.__init__(self)
+        EventSource.__init__(self)
+        print(len(repository.get_list()))
+        self.group = Group()    
+        
+        self.app = app
+        self.repository = repository
+        
+        self.events = EventCallbacksList()
+        self.events.set_callback(
+            self.repository, "source-added", self._cb_add)
+        self.events.set_callback(
+            self.repository, "source-removed", self._cb_remove)
+        
+        self.dictionaryGroup = {}        
+        list_pom = self.repository.get_list()
+        
+        for item in list_pom:
+            self._cb_add_in_list_source(item)
+        
+    
+    def _cb_add(self, source):
+        group_view = GroupView(source, self.app)
+
+        group_view.set_callback("attach-source", self._cb_attach)
+        group_view.set_callback("delete-source", self._cb_delete)
+        group_view.set_callback("source-data-changed", self._cb_changed)
+        
+        group_view.show_all()
+        self.pack_start(group_view, False, False)
+        self.group.add(source)
+        self.dictionaryGroup[self.group] = group_view       
+    
+    def _cb_remove(self, source):
+        group_view = self.dictionaryGroup[source]
+        
+        group_view.remove_callback("attach-source", self._cb_attach)
+        group_view.remove_callback("delete-source", self._cb_delete)
+        group_view.remove_callback("source-data-changed", self.cb_changed)
+        
+        self.remove(group_view)  
+        
+    def deregister_callbacks(self):
+        self.events.remove_all()
+
+    def _cb_attach(self, source):
+        self.emit_event("attach-source", source)
+        
+    def _cb_delete(self, listSource):
+        self.repository.remove(listSource)
+        
+    def _cb_changed(self, listSource):
+        self.emit_event("source-data-changed", listSource)
+        
+    def _cb_add_in_list_source(self, item):
+        self.repository.add(item)
