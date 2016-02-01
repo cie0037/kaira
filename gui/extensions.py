@@ -34,6 +34,7 @@ import utils
 
 operations = {} # the list of all loaded operations
 current_folder = "" #current folder from group sources
+id = 0
 
 # *****************************************************************************
 # Sources
@@ -65,7 +66,8 @@ class Source(object, EventSource):
         self.data = data
         self.stored = stored
         self.settings = settings
-
+        self.id = get_id()
+        
     @property
     def name(self):
         return self._name
@@ -130,7 +132,9 @@ class SourceView(gtk.Alignment, EventSource):
         # check button
         self.check_button = gtk.CheckButton()
         self.check_button.set_active(False)
-        self.check_button.connect("toggled", self.app.sources_repository.check_button, self.check_button.get_active())
+        
+        self.app.sources_repository.check_butons[self] = self.check_button.get_active()
+        
         self.check_button.show()
         table.attach(self.check_button, 0, 1, 0, 1, xoptions=gtk.FILL) 
     
@@ -279,7 +283,7 @@ class SourcesRepository(object, EventSource):
     def __init__(self):
         EventSource.__init__(self)
         self._sources = []
-        self.button = False
+        self.check_butons = {}
 
     def __len__(self):
         return len(self._sources)
@@ -340,10 +344,11 @@ class SourcesRepository(object, EventSource):
     
     def check_button(self, button, value):
         print(button.get_active())
-        self.button = button.get_active()
+        print(value)
+        self.check_butons[self.source.id] = button.get_active()
 
-    def get_check_button(self):
-        return self.button    
+    def get_check_button(self, source):
+        return self.check_butons[source.id]   
     
 class SourcesRepositoryView(gtk.VBox, EventSource):
 
@@ -927,10 +932,10 @@ class OperationManager(gtk.VBox):
         gtk.VBox.__init__(self)
 
         self.__objects_with_callbacks = []
-
         self.app = app
         self.loaded_operations = []
         self.events = EventCallbacksList()
+        global current_folder
 
         # repository of loaded sources
         self.events.set_callback(
@@ -1175,9 +1180,9 @@ class OperationManager(gtk.VBox):
     def _cb_create_group(self):
         filenames = []
         
-        if self.app.sources_repository.get_check_button():
-            sources = self.app.sources_repository.get_list()
-            for source in sources:
+        if self.app.sources_repository.get_check_button[self.source.id]:
+            list_source = self.app.sources_repository.get_list()
+            for source in list_source:
                 self.app.sources_repository.remove(source)
                 filenames.append(source.name)
                 
@@ -1358,7 +1363,13 @@ def load_extensions():
             # the file is *.py and it exists
             imp.load_source("extension_" + name, fullname)
     sys.path.remove(paths.EXTENSIONS_DIR)
-    
+
+def get_id():
+    global id 
+    id += 1
+    return id  
+
+  
 #---------------------------------------------------------------------
 #           GROUP - view, repozitory, repositoryView                  
 #---------------------------------------------------------------------
@@ -1402,7 +1413,7 @@ class GroupView(gtk.Alignment,EventSource):
         self.group = group
         self.id_group = group.get_id_group()
         self.list_source = group.getList()
-        self.index = 0
+
                 
         self.set_callback("group-name-changed", lambda old, new: self.entry_name.set_text(new))
     
@@ -1425,7 +1436,9 @@ class GroupView(gtk.Alignment,EventSource):
         self.entry_name = gtk.Entry()
         self.entry_name.set_size_request(40, -1)
         self.entry_name.set_editable(True)
-        self.entry_name.set_text(self.group.get_id_group())
+        print(self.id_group)
+        print("group view constructor")
+        self.entry_name.set_text(self.id_group)
         self.table.attach(self.entry_name, 0, 1, 0, 1)    
         
         # name of data type
@@ -1581,7 +1594,8 @@ class GroupView(gtk.Alignment,EventSource):
         self.emit_event("group-data-changed", group)
 
     def _cb_dispose(self):
-        self.group = None
+        for sources in self.group.getList():
+            sources.clear()
         self._lock_buttons()
         if self.tabview is not None:
             self.tabview.close()
@@ -1620,9 +1634,18 @@ class GroupRepository(object, EventSource):
         self.groups = {}
         self.group_views = {}
         self.index = 0
-        self.button = False
+        
         
     def add(self, group):
+        print(self.groups.has_key(group.get_id_group()))
+        if self.groups.has_key(group.get_id_group()):
+            self.index += 1
+            group.set_id_group("default_" + str(self.index))
+            print(group.get_id_group())
+            self.groups[group.get_id_group()] = group 
+        else:
+            self.groups[group.get_id_group()] = group   
+            
         self.emit_event("group-added", group)
         
     def remove(self, group):
@@ -1673,18 +1696,11 @@ class GroupRepositoryView(gtk.VBox, EventSource):
         group_view.set_callback("attach-group", self._cb_attach_group)
         group_view.set_callback("delete-group", self._cb_delete_group)
         group_view.set_callback("group-data-changed", self._cb_changed_group)
-    
-        self.pack_start(group_view, False, False)
-        group_view.show_all()
         
         self.app.group_repository.group_views[group.get_id_group()] = group_view
-        
-        if self.app.group_repository.groups.has_key(group_view.id_group):
-            group_view.index += 1
-            group_view.group.set_id_group("default_" + str(group_view.index))
-            self.app.group_repository.groups[group_view.group.get_id_group()] = group_view 
-        else:
-            self.app.group_repository.groups[group_view.group.get_id_group()] = group_view   
+                
+        self.pack_start(group_view, False, False)
+        group_view.show_all()
     
     def _cb_remove(self, group):
         group_view = self.app.group_repository.group_views[group.get_id_group()]
