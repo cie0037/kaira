@@ -747,6 +747,10 @@ class Operation(object, EventSource):
 
                 # not attached source
                 self.emit_event("no-free-slot", source)
+    
+    def attach_group_obj(self, group):
+        print(group)
+        self.emit_event("no-free-slot", group)
         
     def all_sources_filled(self):
         for argument in self.arguments:
@@ -1371,10 +1375,6 @@ def load_extensions():
             imp.load_source("extension_" + name, fullname)
     sys.path.remove(paths.EXTENSIONS_DIR)
 
-def get_id():
-    global id 
-    id += 1
-    return id  
 
   
 #---------------------------------------------------------------------
@@ -1733,6 +1733,7 @@ class GroupRepositoryView(gtk.VBox, EventSource):
         self.events.remove_all()
 
     def _cb_attach_group(self, group):
+        Operation.attach_group_obj(group)
         print(type(group))
         print("_cb_attach_group")
         self.emit_event("attach-group", group)
