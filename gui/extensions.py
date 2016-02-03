@@ -430,7 +430,7 @@ class Parameter(object):
 
     """
 
-    def __init__(self, name, type, list=False, minimum=1):
+    def __init__(self, name, type, type_source = False, minimum=1):
         """Initialize of a parameter.
 
         Arguments:
@@ -445,7 +445,7 @@ class Parameter(object):
         """
         self.name = name
         self.type = type
-        self.list = list
+        self.type_source = type_source
         self.minimum = minimum
 
 
@@ -473,7 +473,12 @@ class Argument(object, EventSource):
         return self._parameter.minimum
 
     def is_list(self):
-        return self._parameter.list
+        if type(self._parameter.type_source).__name__ == 'list':
+            return self._parameter.type_source
+    
+    def is_group(self):
+        if type(self._parameter.type_source).__name__ == 'Group':
+            return self._parameter.type_source
 
     def is_empty(self):
         return self._real_attached == 0
@@ -732,9 +737,10 @@ class Operation(object, EventSource):
         # not attached source
         self.emit_event("no-free-slot", source)
     
-    def attach_group(self, sources):
-        if type(source).__name__ == 'List':
-            for source in sources:
+    def attach_group(self, group):
+        if type(group).__name__ == 'Group':
+            list = group.getList()
+            for source in list:
                 argument, index = self.selected_argument
                 if argument is not None and argument.type == source.type:
                     argument.attach_source(source, index)
@@ -747,10 +753,6 @@ class Operation(object, EventSource):
 
                 # not attached source
                 self.emit_event("no-free-slot", source)
-    
-    def attach_group_obj(self, group):
-        print(group)
-        self.emit_event("no-free-slot", group)
         
     def all_sources_filled(self):
         for argument in self.arguments:
@@ -1624,7 +1626,7 @@ class GroupView(gtk.Alignment,EventSource):
         if self.tabview is not None:
             self.tabview.close()
         
-        group_view = self.app.group_repository.group_views[self.id_group]
+        group_view = self.app.group_repository.group_views[group.id_group]
         print(type("group_view"))
         for list_source in group_view.group.getList():
             for source in list_source:
@@ -1716,7 +1718,7 @@ class GroupRepositoryView(gtk.VBox, EventSource):
         group_view.set_callback("group-data-changed", self._cb_changed_group)
         
         self.app.group_repository.group_views[group.get_id_group()] = group_view
-                
+
         self.pack_start(group_view, False, False)
         group_view.show_all()
     
@@ -1733,7 +1735,7 @@ class GroupRepositoryView(gtk.VBox, EventSource):
         self.events.remove_all()
 
     def _cb_attach_group(self, group):
-        Operation.attach_group_obj(group)
+        Operation.attach_group(group)
         print(type(group))
         print("_cb_attach_group")
         self.emit_event("attach-group", group)
