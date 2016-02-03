@@ -716,7 +716,6 @@ class Operation(object, EventSource):
         return results
 
     def attach_source(self, source):
-        print(type(source))
         if type(source).__name__== 'list':
             self.attach_group(source)
             return
@@ -733,28 +732,21 @@ class Operation(object, EventSource):
         # not attached source
         self.emit_event("no-free-slot", source)
     
-    def attach_group(self, group):
-        print("nojo")
-        print(type(group))
-        if type(group).__name__ == 'Group':
-            self.group = group
-            list_source = group.getList()
-            for sources in list_source:
-                for source in sources:
-                    print(type(list_source))
-                    print(type(source))
-                    argument, index = self.selected_argument
-                    if argument is not None and argument.type == source.type:
-                        argument.attach_source(source, index)
+    def attach_group(self, sources):
+        if type(source).__name__ == 'List':
+            for source in sources:
+                argument, index = self.selected_argument
+                if argument is not None and argument.type == source.type:
+                    argument.attach_source(source, index)
+                    return
+                for argument in self.arguments:
+                    if (source.type == argument.type and
+                       (argument.is_empty() or argument.is_list())):
+                        argument.attach_source(source)
                         return
-                    for argument in self.arguments:
-                        if (source.type == argument.type and
-                            (argument.is_empty() or argument.is_list())):
-                            argument.attach_source(source)
-                            return
 
-                            # not attached source
-                            self.emit_event("no-free-slot", source)
+                # not attached source
+                self.emit_event("no-free-slot", source)
         
     def all_sources_filled(self):
         for argument in self.arguments:
@@ -776,7 +768,7 @@ class Operation(object, EventSource):
         else:
             self.state = "incomplete"
 
-
+    
 class OperationShortView(gtk.Alignment, EventSource):
 
     def __init__(self, operation):

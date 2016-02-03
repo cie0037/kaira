@@ -45,3 +45,15 @@ class TracelogExport(extensions.Operation):
                                  ri.get_table())
 
 extensions.add_operation(TracelogExport)
+
+class TracelogProcessing(extensions.Operation):
+    
+    name = "Tracelog processing"
+    description = "Processing group tracelog into graph"
+    
+    parameters = [ extensions.Parameter("Group", datatypes.t_tracelog)]
+    
+    def run(self, app, group):
+        print(group)
+        
+extensions.add_operation(TracelogProcessing)
