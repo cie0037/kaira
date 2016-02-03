@@ -66,7 +66,6 @@ class Source(object, EventSource):
         self.data = data
         self.stored = stored
         self.settings = settings
-        self.id = get_id()
         
     @property
     def name(self):
@@ -132,10 +131,8 @@ class SourceView(gtk.Alignment, EventSource):
         # check button
         self.check_button = gtk.CheckButton()
         self.check_button.set_active(False)
-        
-        self.app.sources_repository.check_butons[self] = self.check_button.get_active()
-        
         self.check_button.show()
+        self.check_button.connect("toggled", lambda w: self.emit_event("boolean",self.source, self.check_button.get_active()))        
         table.attach(self.check_button, 0, 1, 0, 1, xoptions=gtk.FILL) 
     
         # name of source
@@ -201,6 +198,12 @@ class SourceView(gtk.Alignment, EventSource):
         frame.add(table)
 
         self.add(frame)
+        
+    def id(self):
+        return self.id
+    
+    def id(self, id):
+        self.id = id    
         
     def _menu_handler(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
@@ -283,8 +286,8 @@ class SourcesRepository(object, EventSource):
     def __init__(self):
         EventSource.__init__(self)
         self._sources = []
-        self.check_butons = {}
-
+        self.bool = {}
+        
     def __len__(self):
         return len(self._sources)
 
@@ -318,7 +321,8 @@ class SourcesRepository(object, EventSource):
             self.emit_event("source-removed", source)
             return True
         return False
-
+    
+    
     def load_source(self, filename, app, settings=None):
         # calls the module's method (load_source)
         source = load_source(filename, app, settings)
@@ -342,14 +346,7 @@ class SourcesRepository(object, EventSource):
     def get_list(self):
         return [source for source in self._sources]
     
-    def check_button(self, button, value):
-        print(button.get_active())
-        print(value)
-        self.check_butons[self.source.id] = button.get_active()
 
-    def get_check_button(self, source):
-        return self.check_butons[source.id]   
-    
 class SourcesRepositoryView(gtk.VBox, EventSource):
 
     def __init__(self, repository, app):
@@ -357,6 +354,7 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         EventSource.__init__(self)
 
         self.repository = repository
+        
         self.events = EventCallbacksList()
         self.events.set_callback(
             self.repository, "source-added", self._cb_source_added)
@@ -365,6 +363,7 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         self.app = app
 
         self.sources_views = {} # (source, source_view)
+       
 
         sources = self.repository.get_sources()
         for source in sources:
@@ -393,9 +392,11 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         source_view.set_callback("attach-source", self._cb_attach_source)
         source_view.set_callback("delete-source", self._cb_delete_source)
         source_view.set_callback("source-data-changed", self._cb_data_changed)
+        source_view.set_callback("boolean", self._cb_check_button)
         self.pack_start(source_view, False, False)
         source_view.show_all()
         self.sources_views[source] = source_view
+        
 
     def _cb_source_removed(self, source):
         source_view = self.sources_views[source]
@@ -403,6 +404,7 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         source_view.remove_callback("delete-source", self._cb_delete_source)
         source_view.remove_callback(
             "source-data-changed", self._cb_data_changed)
+        source_view.remove_callback("boolean", self._cb_check_button)
         self.remove(source_view)
 
     def _cb_attach_source(self, source):
@@ -413,6 +415,13 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
 
     def _cb_delete_source(self, source):
         self.repository.remove(source)
+
+    def _cb_check_button(self, source, bool):
+        self.repository.bool[source] = bool 
+        print(source.name)
+        print(bool)
+        print(len(self.repository.bool))
+
 
 
 class Parameter(object):
@@ -935,13 +944,12 @@ class OperationManager(gtk.VBox):
         self.app = app
         self.loaded_operations = []
         self.events = EventCallbacksList()
-        global current_folder
 
         # repository of loaded sources
         self.events.set_callback(
             app.sources_repository, "source-removed",
             self._cb_detach_source_from_all_operations)
-            
+        self.events.set_callback(app.sources_repository,"boolean", self._cb_create)    
         # group repository
         self.events.set_callback(app.group_repository, "source-removed", self._cb_detach_from_oprations)
 
@@ -1178,17 +1186,24 @@ class OperationManager(gtk.VBox):
             window.destroy()
                 
     def _cb_create_group(self):
+        file = []
         filenames = []
-        
-        if self.app.sources_repository.get_check_button[self.source.id]:
-            list_source = self.app.sources_repository.get_list()
-            for source in list_source:
-                self.app.sources_repository.remove(source)
-                filenames.append(source.name)
-                
+        for k, v in self.app.sources_repository.bool.iteritems():
+            if v is True:
+                file.append(k)
+                self.app.sources_repository.remove(k)
+        for i in file:
+            del self.app.sources_repository.bool[i]
+            filenames.append(i.name)
+        if len(filenames) > 0:
             self.app.group_repository.load_group(filenames, self.app)
-        
+            del filenames[:]
                 
+     
+    def _cb_create(self, source, bool):
+        print(source)
+        print(bool)
+               
     def _cb_operation_selected(self, operation):
         if self.full_view.operation == operation:
             return
@@ -1288,8 +1303,8 @@ class OperationManager(gtk.VBox):
                     if arg_source == source:
                         argument.emit_event("argument-changed")
 
-    def _cb_changed_group(self, list_source):
-        for source in self.list_source:
+    def _cb_changed_group(self, group):
+        for source in group.getList():
             self._cb_source_data_changed(source)
             
     def unpack_group(self, filenames):
@@ -1436,8 +1451,6 @@ class GroupView(gtk.Alignment,EventSource):
         self.entry_name = gtk.Entry()
         self.entry_name.set_size_request(40, -1)
         self.entry_name.set_editable(True)
-        print(self.id_group)
-        print("group view constructor")
         self.entry_name.set_text(self.id_group)
         self.table.attach(self.entry_name, 0, 1, 0, 1)    
         
@@ -1456,11 +1469,6 @@ class GroupView(gtk.Alignment,EventSource):
         
         self.btns_group1 = []
         self.btns_group2 = []
-        
-        button = gtk.Button("Rename")
-        button.connect("clicked", lambda w: self._cb_rename_id_group(self.group))
-        self.table.attach(button, 1, 2, 0, 3, xoptions = gtk.FILL)
-        self.btns_group1.append(button)
         
         # unpack button
         button = gtk.Button("Unpack")
@@ -1491,21 +1499,30 @@ class GroupView(gtk.Alignment,EventSource):
         menu.append(item)
         self.item_reload = gtk.MenuItem("Reload")
         self.item_reload.connect("activate", lambda w: self._cb_load())
-        self.item_reload.set_sensitive(len(self.group.getList()))
+        self.item_reload.set_sensitive(0)
         menu.append(self.item_reload)
         menu.append(gtk.SeparatorMenuItem())
 
-        self.item_dispose = gtk.MenuItem("Dispose")
-        self.item_dispose.connect("activate", lambda w: self._cb_dispose())
-        self.item_dispose.set_sensitive(len(self.group.getList()))
-        self.btns_group1.append(self.item_dispose)
-        menu.append(self.item_dispose)
+#        self.item_dispose = gtk.MenuItem("Dispose")
+#        self.item_dispose.connect("activate", lambda w: self._cb_dispose())
+#        self.item_dispose.set_sensitive(1)
+#        self.btns_group1.append(self.item_dispose)
+#        menu.append(self.item_dispose)
 
         item = gtk.MenuItem("Delete")
         item.connect("activate", lambda w: self._cb_delete())
         menu.append(item)
+        
+        
+        menu.append(gtk.SeparatorMenuItem())
+        
+        self.item_rename = gtk.MenuItem("Rename")
+        self.item_rename.connect("activate", lambda w: self._cb_rename(self.group))
+        self.item_rename.set_sensitive(2)
+        self.btns_group1.append(self.item_rename)
+        menu.append(self.item_rename)
         menu.show_all()
-
+        
         menu_btn = gtk.Button(">");
         menu_btn.connect_object("event-after", self._menu_handler, menu)
         self.table.attach(menu_btn, 5, 6, 0, 3, xoptions=0)
@@ -1594,12 +1611,12 @@ class GroupView(gtk.Alignment,EventSource):
         self.emit_event("group-data-changed", group)
 
     def _cb_dispose(self):
-        for sources in self.group.getList():
-            sources.clear()
         self._lock_buttons()
+        for sources in self.group.getList():
+            del sources[:]
         if self.tabview is not None:
             self.tabview.close()
-        self.emit_event("source-data-changed", self.group)
+        self.emit_event("group-data-changed", self.group)
         
     def _cb_delete(self):
         print("DELETE")
@@ -1609,7 +1626,7 @@ class GroupView(gtk.Alignment,EventSource):
             self.tabview.close()
 
     def add_source(self, group):
-        self.group.add(group)
+        self.app.group_repository.add(group)
        
     def _cb_unpack_list_source(self, group):
         if self.tabview is not None:
@@ -1624,8 +1641,17 @@ class GroupView(gtk.Alignment,EventSource):
                 self.app.sources_repository.load_source(source.name, self.app)
         self.emit_event("delete-group", group)
     
-    def _cb_rename_id_group(self, group):
-        print("nic")
+    def _cb_rename(self, group):
+        gr = group
+        del self.app.group_repository.groups[group.id_group]
+        view = self.app.group_repository.group_views[gr.id_group]
+        del self.app.group_repository.group_views[gr.id_group]
+        gr.id_group = self.entry_name.get_text()
+        self.app.group_repository.groups[gr.id_group] = gr 
+        self.app.group_repository.group_views[gr.id_group] = view
+        
+        
+        print(group.id_group)
         
 class GroupRepository(object, EventSource):
     
