@@ -5,7 +5,7 @@
 #    This file is part of Kaira.
 #
 #    Kaira is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General PubSourcelic License as published by
+#    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, version 3 of the License, or
 #    (at your option) any later version.
 #
@@ -33,8 +33,6 @@ from mainwindow import Tab
 import utils
 
 operations = {} # the list of all loaded operations
-current_folder = "" #current folder from group sources
-id = 0
 
 # *****************************************************************************
 # Sources
@@ -65,8 +63,9 @@ class Source(object, EventSource):
         self.type = type
         self.data = data
         self.stored = stored
+        self.picked = False
         self.settings = settings
-        
+
     @property
     def name(self):
         return self._name
@@ -113,7 +112,6 @@ class SourceView(gtk.Alignment, EventSource):
     def __init__(self, source, app):
         gtk.Alignment.__init__(self, 0, 0, 1, 1)
         EventSource.__init__(self)
-        
         self.source = source
         self.source.set_callback("source-name-changed",
                                  lambda old, new: self.entry_name.set_text(new))
@@ -123,34 +121,35 @@ class SourceView(gtk.Alignment, EventSource):
 
         self.set_padding(5, 0, 10, 10)
 
-        table = gtk.Table(4, 3, False)
+        table = gtk.Table(2, 5, False)
         table.set_border_width(2)
         table.set_col_spacing(0, 10)
         table.set_col_spacing(1, 2)        
         
-        # check button
-        self.check_button = gtk.CheckButton()
-        self.check_button.set_active(False)
-        self.check_button.show()
-        self.check_button.connect("toggled", lambda w: self.emit_event("boolean",self.source, self.check_button.get_active()))        
-        table.attach(self.check_button, 0, 1, 0, 1, xoptions=gtk.FILL) 
-    
+        # pick source button
+        btn_pick_source = gtk.CheckButton()
+        btn_pick_source.set_active(self.source.picked)
+        btn_pick_source.show()
+        btn_pick_source.connect("toggled", lambda check_button: self.emit_event(
+            "pick-source", self.source, check_button.get_active()))
+        table.attach(btn_pick_source, 0, 1, 0, 2, xoptions=gtk.FILL)
+
         # name of source
         self.entry_name = gtk.Entry()
         self.entry_name.set_size_request(40, -1)
         self.entry_name.set_editable(False)
         self.entry_name.set_text(self.source.name)
         table.attach(self.entry_name, 1, 2, 0, 1)
-        
+
         # name of data type
         label = gtk.Label()
         label.set_alignment(0, 0)
         label.set_markup("<i>{0}</i>".format(self.source.type.name))
-        table.attach(label, 0, 1, 2, 3,xoptions=gtk.FILL)
+        table.attach(label, 1, 2, 1, 2, xoptions=gtk.FILL)
 
         self.btns_group1 = []
         self.btns_group2 = []
-        
+
         # attach button
         button = gtk.Button("Attach")
         button.connect(
@@ -198,13 +197,7 @@ class SourceView(gtk.Alignment, EventSource):
         frame.add(table)
 
         self.add(frame)
-        
-    def id(self):
-        return self.id
-    
-    def id(self, id):
-        self.id = id    
-        
+
     def _menu_handler(self, widget, event):
         if event.type == gtk.gdk.BUTTON_PRESS:
             widget.popup(None, None, None, event.button, event.time)
@@ -286,8 +279,7 @@ class SourcesRepository(object, EventSource):
     def __init__(self):
         EventSource.__init__(self)
         self._sources = []
-        self.bool = {}
-        
+
     def __len__(self):
         return len(self._sources)
 
@@ -321,8 +313,7 @@ class SourcesRepository(object, EventSource):
             self.emit_event("source-removed", source)
             return True
         return False
-    
-    
+
     def load_source(self, filename, app, settings=None):
         # calls the module's method (load_source)
         source = load_source(filename, app, settings)
@@ -330,22 +321,19 @@ class SourcesRepository(object, EventSource):
             self.add(source)
             return source
         return None
-    
+
     def get_sources(self, filter=None):
         """Return a list of loaded sources. If the filter is not empty,
         the sources are filtered by the type.
 
         Keyword arguments:
-        filter -- a list of types which will be included (default None);
-                  if the filter is None than are include all of sources
+        filter -- a function taking source as a parameter and returning boolean
+                  value.
 
         """
         return [source for source in self._sources
-                if filter is None or source.type in filter]
+                if filter is None or filter(source)]
 
-    def get_list(self):
-        return [source for source in self._sources]
-    
 
 class SourcesRepositoryView(gtk.VBox, EventSource):
 
@@ -354,7 +342,7 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         EventSource.__init__(self)
 
         self.repository = repository
-        
+
         self.events = EventCallbacksList()
         self.events.set_callback(
             self.repository, "source-added", self._cb_source_added)
@@ -363,7 +351,6 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         self.app = app
 
         self.sources_views = {} # (source, source_view)
-       
 
         sources = self.repository.get_sources()
         for source in sources:
@@ -379,7 +366,7 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         return (len(show_sources), len(self.repository))
 
     def deregister_callbacks(self):
-        for source in self.repository.get_sources(None):
+        for source in self.repository.get_sources():
             source_view = self.sources_views[source]
             source_view.remove_callback(
                 "attach-source", self._cb_attach_source)
@@ -392,19 +379,18 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
         source_view.set_callback("attach-source", self._cb_attach_source)
         source_view.set_callback("delete-source", self._cb_delete_source)
         source_view.set_callback("source-data-changed", self._cb_data_changed)
-        source_view.set_callback("boolean", self._cb_check_button)
+        source_view.set_callback("pick-source", self._cb_pick_source)
         self.pack_start(source_view, False, False)
         source_view.show_all()
         self.sources_views[source] = source_view
         
-
     def _cb_source_removed(self, source):
         source_view = self.sources_views[source]
         source_view.remove_callback("attach-source", self._cb_attach_source)
         source_view.remove_callback("delete-source", self._cb_delete_source)
         source_view.remove_callback(
             "source-data-changed", self._cb_data_changed)
-        source_view.remove_callback("boolean", self._cb_check_button)
+        source_view.remove_callback("pick-source", self._cb_pick_source)
         self.remove(source_view)
 
     def _cb_attach_source(self, source):
@@ -416,8 +402,8 @@ class SourcesRepositoryView(gtk.VBox, EventSource):
     def _cb_delete_source(self, source):
         self.repository.remove(source)
 
-    def _cb_check_button(self, source, bool):
-        self.repository.bool[source] = bool 
+    def _cb_pick_source(self, source, picked):
+        source.picked = picked
 
 
 class Parameter(object):
@@ -426,22 +412,25 @@ class Parameter(object):
 
     """
 
-    def __init__(self, name, type, type_source = False, minimum=1):
+    TYPE_ITEM  = "p-item"
+    TYPE_LIST  = "p-list"
+    TYPE_GROUP = "p-group"
+
+    def __init__(self, name, data_type, type=TYPE_ITEM, minimum=1):
         """Initialize of a parameter.
 
         Arguments:
         name -- display name of argument
-        type -- data type of argument (datatypes.Type)
-        list -- True if the argument represents a list of arguments, otherwise
-                False
+        data_type -- data type of argument (datatypes.Type)
 
         Keywords:
-        minimum -- minimal count of values in list (default: 1)
+        type -- a type of an argument (TYPE_ITEM, TYPE_LIST, TYPE_GROUP)
+        minimum -- minimal count of values (default: 1)
 
         """
         self.name = name
+        self.data_type = data_type
         self.type = type
-        self.type_source = type_source
         self.minimum = minimum
 
 
@@ -454,7 +443,6 @@ class Argument(object, EventSource):
 
         self._real_attached = 0
         self._sources = [None] * self._parameter.minimum
-        self.groups = []
 
     @property
     def name(self):
@@ -462,19 +450,17 @@ class Argument(object, EventSource):
 
     @property
     def type(self):
-        return self._parameter.type
+        return self._parameter.data_type
 
     @property
     def minimum(self):
         return self._parameter.minimum
 
     def is_list(self):
-        if type(self._parameter.type_source).__name__ == 'list':
-            return self._parameter.type_source
-    
+        return self._parameter.type == Parameter.TYPE_LIST
+
     def is_group(self):
-        if type(self._parameter.type_source).__name__ == 'Group':
-            return self._parameter.type_source
+        return self._parameter.type == Parameter.TYPE_GROUP
 
     def is_empty(self):
         return self._real_attached == 0
@@ -493,9 +479,6 @@ class Argument(object, EventSource):
         index -- index of chosen source (default -1; last added)
 
         """
-        if len(self.groups) > 0:
-            return self.groups[0]
-        
         if not self._sources or index >= len(self._sources):
             return None
         else:
@@ -532,18 +515,18 @@ class Argument(object, EventSource):
         self.emit_event("argument-changed")
 
     def detach_source(self, index=0):
-        if len(self.groups) > 0:
-            del self.groups[:]
         if 0 <= index < len(self._sources):
             if len(self._sources) - self.minimum <= 0:
                 # minimal count of arguments remain visible
                 self._sources.append(None)
+
+            # TODO: group will need to be solved
             self._sources.pop(index)
             self._real_attached -= 1
             self.emit_event("argument-changed")
 
     def get_data(self):
-        if self.is_list():
+        if self.is_list() or self.is_group():
             return [ source.data
                      for source in self._sources[:self._real_attached] ]
         else:
@@ -558,17 +541,8 @@ class Argument(object, EventSource):
 
     def _cb_source_name_changed(self, idx, old_name, new_name):
         self.emit_event("source-name-changed", idx, old_name, new_name)
-        
-    def attach_group(self,app, group):
-        old_real_attached = self._real_attached
-        self.groups.append(group)
-        attached = True
-        self._real_attached += 1
-        
-        if old_real_attached < self._real_attached:
-            self.set_src_name_changed_callback(group, self._real_attached - 1)
-        self.emit_event("argument-changed")
-            
+
+
 class ArgumentView(gtk.Table, EventSource):
 
     def __init__(self, argument):
@@ -629,10 +603,10 @@ class ArgumentView(gtk.Table, EventSource):
                 # reset callback, make right index
                 self.argument.set_src_name_changed_callback(attached_source, i)
                 entry.set_text(attached_source.name)
-                if type(attached_source).__name__ != 'Group':
-                    #entry.set_sensitive(attached_source)
-                #else:
+                if not self.argument.is_group():
                     entry.set_sensitive(attached_source.data is not None)
+                else:
+                    entry.set_sensitive(False)
             self.attach(entry, 2, 3, i, i+1, xoptions=gtk.FILL)
             self.entries.append(entry)
 
@@ -654,7 +628,8 @@ class ArgumentView(gtk.Table, EventSource):
         self.emit_event("detach-source", self.argument.get_source(index))
 
     def _cb_choose_argument(self, widget, event, index):
-        self.emit_event("filter-sources", [self.argument.type])
+        self.emit_event("filter-sources",
+                        lambda s: s.type == self.argument.type)
         self.argument.emit_event("select-argument", index)
 
 
@@ -662,10 +637,9 @@ class Operation(object, EventSource):
 
     def __init__(self):
         EventSource.__init__(self)
-        self.group = []
-
         self.events = EventCallbacksList()
         self.arguments = [Argument(param) for param in self.parameters]
+
         for argument in self.arguments:
             self.argument = argument
             self.events.set_callback(
@@ -704,7 +678,7 @@ class Operation(object, EventSource):
         if argument is None:
             self.selected_argument = (None, None)
             return
-        
+
         if argument.is_list():
             if index > argument.sources_count():
                 index = argument.sources_count()
@@ -735,9 +709,6 @@ class Operation(object, EventSource):
         return results
 
     def attach_source(self, source):
-        if type(source).__name__== 'list':
-            self.attach_group(source)
-            return
         argument, index = self.selected_argument
         if argument is not None and argument.type == source.type:
             argument.attach_source(source, index)
@@ -749,36 +720,20 @@ class Operation(object, EventSource):
                 return
         # not attached source
         self.emit_event("no-free-slot", source)
-    
+
     def attach_group(self, app, group):
-        if type(group).__name__ == 'Group':
-            state = "ready"
-            self.argument.attach_group(app, group)
-            return
-        self.emit_event("no-free-slot", group)        
+        pass # TODO: implement me
 
-    def exec_processing(self, app, group):
-        if group is not None:
-            results = self.run(app, group)
-        
-        
     def all_sources_filled(self):
-        count = 0
-        for idx in xrange(self.argument.sources_count()):
-            src = self.argument.get_source(idx)
-            if type(src).__name__ == 'Group' and src is not None:
-                count +=1
-                if count < self.argument.minimum:
-                    return False
-                return True
-
-            for idx in xrange(self.argument.sources_count()):
+        for argument in self.arguments:
+            count = 0
+            for idx in xrange(argument.sources_count()):
                 src = self.argument.get_source(idx)
                 if src is not None and src.data is not None:
                     count += 1
             if count < self.argument.minimum:
                 return False
-            return True
+        return True
 
     def deregister_callbacks(self):
         self.events.remove_all()
@@ -789,7 +744,7 @@ class Operation(object, EventSource):
         else:
             self.state = "incomplete"
 
-    
+
 class OperationShortView(gtk.Alignment, EventSource):
 
     def __init__(self, operation):
@@ -872,12 +827,6 @@ class OperationFullView(gtk.VBox, EventSource):
         halign.set_padding(0, 0, 2, 0)
         halign.add(label)
         hbox.pack_start(halign, True, True)
-        
-        # button unpack
-#        button = gtk.Button(" Unpack ")
-#        button.connect("clicked", lambda w: self._cb_unpack_source(source_group))
-#        hbox.pack_start(button, False, False)
-        
 
         # button run
         button = gtk.Button("Run operation")
@@ -906,7 +855,6 @@ class OperationFullView(gtk.VBox, EventSource):
             label.set_line_wrap(True)
             label.set_markup(
                 "<i>{0}</i>".format(self.operation.description))
-            #label.co__ob_cb_attach_sourcejects_with_callbacksnnect( "size-allocate", cb_allocate)
             frame.add(label)
             align.add(frame)
             self.pack_start(align, False, False)
@@ -926,15 +874,8 @@ class OperationFullView(gtk.VBox, EventSource):
         self.show_all()
 
     def _cb_run(self):
-        argument = self.operation.arguments[0]
-        if len(argument.groups) > 0:
-            if type(argument.groups[0]).__name__ == 'Group':
-                self.operation.exec_processing(self.app, argument.groups[0])
-                self.emit_event("operation-finished", self.operation, self.app.group_repository.groups)
-        else:
-            data = self.operation.execute(self.app)
-            self.emit_event("operation-finished", self.operation, data)
-            
+        data = self.operation.execute(self.app)
+        self.emit_event("operation-finished", self.operation, data)
 
     def _cb_state_changed(self, state, icon, btn_run):
         icon.set_state(state)
@@ -948,14 +889,12 @@ class OperationFullView(gtk.VBox, EventSource):
             "There is no free slot for source: '{0}'.".format(source.name),
             gtk.MESSAGE_INFO)
 
-    def _cb_unpack_source(self, source_group):
-        print("ZATIM NIC!")
-    
+
 # *****************************************************************************
 # Operation manager
 
 class OperationManager(gtk.VBox):
-    
+
     def __init__(self, app):
         gtk.VBox.__init__(self)
 
@@ -969,7 +908,8 @@ class OperationManager(gtk.VBox):
             app.sources_repository, "source-removed",
             self._cb_detach_source_from_all_operations)
         # group repository
-        self.events.set_callback(app.group_repository, "source-removed", self._cb_detach_from_oprations)
+        self.events.set_callback(app.group_repository,
+            "group-removed", self._cb_detach_group_sources)
 
         # full view of selected operation
         self.full_view = OperationFullView(self.app)
@@ -987,17 +927,17 @@ class OperationManager(gtk.VBox):
         button = gtk.Button("Load source")
         button.connect("clicked", lambda w: self._cb_load())
         toolbar.pack_start(button, False, False)
-        
+
         # new load in group tracelog
         button = gtk.Button("Load group")
-        button.connect("clicked", lambda w: self._cb_select_group())
+        button.connect("clicked", lambda w: self._cb_load_group())
         toolbar.pack_start(button, False, False)
-        
+
         # new create group from load sorce
         button = gtk.Button("Create group")
         button.connect("clicked", lambda w: self._cb_create_group())
         toolbar.pack_start(button, False, False)
-       
+
         button = gtk.Button("Disable filter")
         button.connect("clicked", lambda w: self._cb_filter_off())
         toolbar.pack_start(button, False, False)
@@ -1006,13 +946,13 @@ class OperationManager(gtk.VBox):
         # sources
         vbox = gtk.VBox(False)
         vbox.set_size_request(80,-1)
-        
+
         self.sources_title = gtk.Label()
         self.sources_title.set_markup("Sources:")
         haling = gtk.Alignment(0, 0, 0, 0)
         haling.set_padding(0, 5, 2, 0)
         haling.add(self.sources_title)
-    
+
         vbox.pack_start(haling, False, False)
 
         self.sources_view = SourcesRepositoryView(
@@ -1023,16 +963,16 @@ class OperationManager(gtk.VBox):
         self.events.set_callback(
             self.sources_view,
             "source-data-changed", self._cb_source_data_changed)
-         
+
         scw = gtk.ScrolledWindow()
         scw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scw.add_with_viewport(self.sources_view)
-        
+
         paned = gtk.VPaned()
         paned.add1(scw)
-           
+
         #new group view
-        self.group_view = GroupRepositoryView(app.group_repository, self.app)
+        self.group_view = GroupsRepositoryView(app.group_repository, self.app)
         self.__objects_with_callbacks.append(self.group_view)
         self.events.set_callback(self.group_view, "attach-group", self._cb_attach_group)
         self.events.set_callback(self.group_view, "group-data-changed", self._cb_changed_group)
@@ -1040,11 +980,11 @@ class OperationManager(gtk.VBox):
         scrolledWindow = gtk.ScrolledWindow()
         scrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scrolledWindow.add_with_viewport(self.group_view)
-                
+
         paned.add2(scrolledWindow)
         paned.show()
         vbox.pack_start(paned, True, True)
-    
+
         paned1 = gtk.HPaned()
         paned1.pack1(vbox, resize=True)
 
@@ -1079,7 +1019,7 @@ class OperationManager(gtk.VBox):
 
     def load_source(self, filename):
         return self.app.sources_repository.load_source(filename, self.app)
-    
+
     def load_group(self, filenames):
         return self.app.group_repository.load_group(filenames, self.app)
 
@@ -1126,10 +1066,7 @@ class OperationManager(gtk.VBox):
         finally:
             dialog.destroy()
         
-    
-    def _cb_select_group(self):
-        # run button 'Load in group'
-        # file dialog window
+    def _cb_load_group(self): # TODO: not refactored (checked)
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         window.set_title("Load group")
         window.set_size_request(600,480)
@@ -1137,85 +1074,74 @@ class OperationManager(gtk.VBox):
         vbox = gtk.VBox()
         vbox.show()
         window.add(vbox)
-        
+
         file_dialog = gtk.FileChooserWidget(gtk.FILE_CHOOSER_ACTION_OPEN, None)
         file_dialog.set_select_multiple(True)
-        file_dialog.show()  
-        vbox.pack_start(file_dialog, True, True, 5) 
-        #add filters
-        #for filter in datatypes.get_load_file_filters():
-        #   fileDialog.add_filter(filter)
-            
-        #GUI              
-        hbox = gtk.HBox() 
+        file_dialog.show()
+        vbox.pack_start(file_dialog, True, True, 5)
+
+        hbox = gtk.HBox()
         hbox.show()
-        
+
         label = gtk.Label("Regular expression: ")
         label.show()
         hbox.pack_start(label,False, False, 0)
-        
+
         entry = gtk.Entry()
         entry.show()
         hbox.pack_start(entry, True, True, 0)
-        
+
         button = gtk.Button("Select")
         button.connect("clicked", lambda w: _cb_select_file(entry.get_text()))
-        
+
         def _cb_select_file(text):
-            #current_folder = file_dialog.get_current_folder()
-            #print(current_folder)
             file_dialog.select_all()
             self.filenames = file_dialog.get_filenames()
-            
+
             for file in self.filenames:
                 subst = file[file.rfind("/"):len(file)]
                 if  not re.search(text,subst):
                     file_dialog.unselect_filename(file)
-                
+
         button.show()
         hbox.pack_start(button, False, False, 0)
-        vbox.pack_start(hbox, False, False, 5) 
-        
+        vbox.pack_start(hbox, False, False, 5)
+
         buttonBox = gtk.HButtonBox()
         buttonBox.set_layout(gtk.BUTTONBOX_END)
         buttonBox.show()
-        
+
         button = gtk.Button("Open")
-        button.connect("clicked", lambda w: self._cb_load_in_group(window, file_dialog))
+        button.connect("clicked",
+                       lambda w: self._cb_load_in_group(window, file_dialog))
         button.set_use_stock(False)
         button.show()
         buttonBox.pack_end(button, False, False, 0)
-        
+
         button = gtk.Button("Cancel")
         button.connect("clicked", lambda w: window.destroy())
         button.set_use_stock(False)
         button.show()
         buttonBox.pack_end(button, False, False, 0)
-        
+
         vbox.pack_start(buttonBox,False, False, 5)
-        
+
         window.show()
-            
+
     def _cb_load_in_group(self, window, file_dialog):
         try:
             files = file_dialog.get_filenames()
             self.load_group(files)
         finally:
             window.destroy()
-                
+
     def _cb_create_group(self):
-        file = []
-        filenames = []
-        for k, v in self.app.sources_repository.bool.iteritems():
-            if v is True:
-                file.append(k)
-                self.app.sources_repository.remove(k)
-        for i in file:
-            del self.app.sources_repository.bool[i]
-            filenames.append(i.name)
-        if len(filenames) > 0:
-            self.app.group_repository.load_group(filenames, self.app)
-            del filenames[:]
+        selected_sources = []
+        for source in self.app.sources_repository.get_sources(
+                lambda s : s.picked):
+            selected_sources.append(source)
+            self.app.sources_repository.remove(source)
+        self.app.group_repository.add(Group(selected_sources))
                
     def _cb_operation_selected(self, operation):
         if self.full_view.operation == operation:
@@ -1223,8 +1149,8 @@ class OperationManager(gtk.VBox):
         self._cb_filter_off()
         self.full_view.set_operation(operation)
 
-    def _cb_filter_sources(self, type):
-        visible_sources, all_sources = self.sources_view.set_filter(type)
+    def _cb_filter_sources(self, filter):
+        visible_sources, all_sources = self.sources_view.set_filter(filter)
         self.sources_title.set_markup(
             "Sources (<b>visible {0} from {1}</b>):".format(
                 visible_sources, all_sources))
@@ -1259,25 +1185,9 @@ class OperationManager(gtk.VBox):
         else:
             self.app.show_message_dialog(
                 "No operation is chosen.", gtk.MESSAGE_INFO)
-    
-    def _cb_attach_group(self, group):
-        operation = self.full_view.operation
-        if operation is not None:
-            operation.attach_group(self.app, group)
-            
-            param, idx = operation.selected_argument
-            if param is None:
-                return
 
-            if param.is_list(): # the filter will stay on,
-                                 # if a argument is list type
-                operation.select_argument(param, param.sources_count() + 1)
-            else:
-                operation.select_argument(None, None)
-                self.sources_view.set_filter(None)
-        else:
-            self.app.show_message_dialog(
-                "No operation is chosen.", gtk.MESSAGE_INFO)
+    def _cb_attach_group(self, group):
+        pass # TODO: implement me
 
     def _cb_detach_source(self, source):
         operation = self.full_view.operation
@@ -1303,10 +1213,10 @@ class OperationManager(gtk.VBox):
                     psource = param.get_source()
                     if psource is not None and psource == source:
                         param.detach_source()
-                        
-    def _cb_detach_from_oprations(self, list_source):
-        for source in list_source:
-            self._cb_detach_source_from_all_operations( source)
+
+    def _cb_detach_group_sources(self, group):
+        for source in group:
+            self._cb_detach_source_from_all_operations(source)
 
     def _cb_source_data_changed(self, source):
         for operation in self.loaded_operations:
@@ -1317,12 +1227,266 @@ class OperationManager(gtk.VBox):
                         argument.emit_event("argument-changed")
 
     def _cb_changed_group(self, group):
-        for source in group.getList():
+        for source in group:
             self._cb_source_data_changed(source)
-            
-    def unpack_group(self, filenames):
+
+
+# *****************************************************************************
+# Groups
+
+class Group(object, EventSource):
+
+    def __init__(self, sources=[]):
+        EventSource.__init__(self)
+        self._sources = sources
+
+    def add(self, source):
+        self._sources.append(source)
+
+    def remove(self, source):
+        self._sources.remove(self, source)
+
+    def __getitem__(self, index):
+        return self._sources[index]
+
+    def __iter__(self):
+        return iter(self._sources)
+
+
+class GroupView(gtk.Alignment, EventSource):
+
+    def __init__(self, group, app):
+        gtk.Alignment.__init__(self, 0, 0, 1, 1)
+        EventSource.__init__(self)
+        self.group_name = "group {}".format(utils.get_unique_id())
+        self.group = group
+        self.set_callback("group-name-changed",
+                          lambda old, new: self.entry_name.set_text(new))
+
+        self.app = app
+        self.tabview = None
+
+        self.set_padding(5, 0, 10, 10)
+
+        self.table = gtk.Table(2, 5, False)
+        self.table.set_border_width(2)
+        self.table.set_col_spacing(0, 10)
+        self.table.set_col_spacing(1, 2)
+
+        self.entry_name = gtk.Entry()
+        self.entry_name.set_size_request(40, -1)
+        self.entry_name.set_editable(True)
+        self.entry_name.set_text(self.group_name)
+        self.table.attach(self.entry_name, 0, 1, 0, 1)
+
+        # name of data type
+        label = gtk.Label()
+        label.set_alignment(0, 0)
+        label.set_markup("<i> Kaira tracelog group</i>")
+        label.show()
+        self.table.attach(label, 0, 1, 1, 2)
+
+        self.btns_group1 = []
+        self.btns_group2 = []
+
+        # unpack button
+        button = gtk.Button("Unpack")
+        button.connect("clicked",
+                        lambda w: self._cb_unpack_group(self.group))
+        self.table.attach(button, 1, 2, 0, 2, xoptions = gtk.FILL)
+        self.btns_group1.append(button)
+
+        # attach button
+        button = gtk.Button("Attach")
+        button.connect(
+            "clicked", lambda w: self.emit_event("attach-group", self.group))
+        self.table.attach(button, 2, 3, 0, 2, xoptions = gtk.FILL)
+        self.btns_group1.append(button)
+
+        # show button
+        button = gtk.Button("Show")
+        button.connect(
+            "clicked", lambda w: self._cb_show())
+        self.table.attach(button, 3, 4, 0, 2, xoptions=gtk.FILL)
+        self.btns_group1.append(button)
+
+        # source menu
+        menu = gtk.Menu()
+
+        item = gtk.MenuItem("Store")
+        item.connect("activate", lambda w: self._cb_store())
+        self.btns_group1.append(item)
+        menu.append(item)
+
+        self.item_reload = gtk.MenuItem("Reload")
+        self.item_reload.connect("activate", lambda w: self._cb_load())
+        self.item_reload.set_sensitive(0)
+        menu.append(self.item_reload)
+        menu.append(gtk.SeparatorMenuItem())
+
+        self.item_dispose = gtk.MenuItem("Dispose")
+        self.item_dispose.connect("activate", lambda w: self._cb_dispose())
+        self.item_dispose.set_sensitive(1)
+        self.btns_group1.append(self.item_dispose)
+        menu.append(self.item_dispose)
+
+        item = gtk.MenuItem("Delete")
+        item.connect("activate", lambda w: self._cb_delete())
+        menu.append(item)
+        menu.show_all()
+
+        menu_btn = gtk.Button(">");
+        menu_btn.connect_object("event-after", self._menu_handler, menu)
+        self.table.attach(menu_btn, 4, 5, 0, 2, xoptions=0)
+
+        # source component
+        out_frame = gtk.Frame()
+        out_frame.set_shadow_type(gtk.SHADOW_OUT)
+        in_frame = gtk.Frame()
+        in_frame.set_shadow_type(gtk.SHADOW_OUT)
+        in_frame.add(self.table)
+        out_frame.add(in_frame)
+
+        self.add(out_frame)
+
+    def _menu_handler(self, widget, event):
+        if event.type == gtk.gdk.BUTTON_PRESS:
+            widget.popup(None, None, None, event.button, event.time)
+            return True
+        return False
+
+    def _cb_show(self):
+        pass # TODO: implement me
+
+    def _lock_buttons(self):
+        for btn in self.btns_group1:
+            btn.set_sensitive(self.group is not None)
+        for btn in self.btns_group2:
+            btn.set_sensitive(self.group is None)
+
+    def _cb_store(self):
+        pass # TODO: implement me
+
+    def _cb_load(self):
+        pass # TODO: implement me
+
+    def _cb_dispose(self):
+        self._lock_buttons()
+        for source in self.group: # dispose all sources from group
+            source.data = None
+        if self.tabview is not None: # close view on a group
+            self.tabview.close()
+        self.emit_event("group-data-changed", self.group)
+
+    def _cb_delete(self):
+        if self.tabview is not None:
+            self.tabview.close()
+        self.emit_event("delete-group", self.group)
+
+    def _cb_unpack_group(self, group):
+        for source in group:
+            self.app.sources_repository.add(source)
+        self.emit_event("delete-group", group)
+
+        if self.tabview is not None:
+            self.tabview.close()
+
+
+class GroupsRepository(object, EventSource):
+
+    def __init__(self):
+        EventSource.__init__(self)
+        self._groups = []
+        
+    def __iter__(self):
+        return iter(self._groups)
+
+    def add(self, group):
+        self._groups.append(group)
+        self.emit_event("group-added", group)
+
+    def remove(self, group):
+        if group in self._groups:
+            self._groups.remove(group)
+            self.emit_event("group-removed", group)
+            return True
+        return False
+
+    def load_group(self, filenames, app, settings=None):
+        sources = []
         for filename in filenames:
-            self.load_source(filename)
+            source = load_source(filename, app, settings)
+            if source is None:
+                print "Loading of source {0} failed.".format(filename)
+            else:
+                sources.append(source)
+
+        if sources:
+            group = Group(sources)
+            self.add(group)
+            return group
+        return None
+
+    def get_groups(self, filter=None):
+        return [group for group in self._groups
+                if filter is None or filter(group)]
+
+
+class GroupsRepositoryView(gtk.VBox, EventSource):
+
+    def __init__(self, repository, app):
+        gtk.VBox.__init__(self)
+        EventSource.__init__(self)
+
+        self.app = app
+        self.repository = repository
+
+        self.events = EventCallbacksList()
+        self.events.set_callback(
+            self.repository, "group-added", self._cb_group_added)
+        self.events.set_callback(
+            self.repository, "group-removed", self._cb_group_removed)
+
+        self.group_views = {} # (group, group_view)
+
+        for group in self.repository:
+            self._cb_group_added(group)
+
+    def _cb_group_added(self, group):
+        group_view = GroupView(group, self.app)
+        group_view.set_callback("attach-group", self._cb_attach_group)
+        group_view.set_callback("delete-group", self._cb_delete_group)
+        group_view.set_callback("group-data-changed", self._cb_changed_group)
+        self.group_views[group] = group_view
+        self.pack_start(group_view, False, False)
+        group_view.show_all()
+
+    def _cb_group_removed(self, group):
+        group_view = self.group_views[group]
+        group_view.remove_callback("attach-group", self._cb_attach_group)
+        group_view.remove_callback("delete-group", self._cb_delete_group)
+        group_view.remove_callback("group-data-changed", self._cb_changed_group)
+        self.remove(group_view)
+
+    def deregister_callbacks(self):
+        for group in self.repository:
+            group_view = self.group_views[group]
+            group_view.remove_callback(
+                "attach-source", self._cb_attach_source)
+            group_view.remove_callback(
+                "delete-source", self._cb_delete_source)
+        self.events.remove_all()
+
+    def _cb_attach_group(self, group):
+        self.emit_event("attach-group", group)
+
+    def _cb_delete_group(self, group):
+        self.repository.remove(group)
+
+    def _cb_changed_group(self, list_source):
+        self.emit_event("group-data-changed", list_source)
+
+
 # *****************************************************************************
 # Modules methods
 
@@ -1351,32 +1515,16 @@ def load_source(filename, app, settings=None):
     return Source(
         filename, datatypes.get_type_by_suffix(suffix), data, True, settings)
 
-    
-def load_group(filenames, app ,settings = None):
-    list_source = []
-
+def load_group(filenames, app, settings=None):
+    sources = []
     for filename in filenames:
-        if type(filename) == Source:
-            suffix = utils.get_filename_suffix(filename.name)
+        source = load_source(filename, app, settings)
+        if source is None:
+            print "Loading of source {0} failed.".format(filename)
         else:
-            suffix = utils.get_filename_suffix(filename)        
-        loader = datatypes.get_loader_by_suffix(suffix)
-        if loader is None:
-            return None
-        data, settings = loader(filename, app, settings)
-        if data is  None:
-            return None
-        source = Source(filename, datatypes.get_type_by_suffix(suffix), data, True, settings)
-        list_source.append(source)
+            sources.append(source)
+    return Group(sources)
 
-    return list_source
-
-def create_group(list_source):
-    group = Group()
-    group.set_id_group("default")
-    group.add(list_source)
-    return group
-            
 def add_operation(operation):
     operations[operation.name] = operation
 
@@ -1390,355 +1538,3 @@ def load_extensions():
             # the file is *.py and it exists
             imp.load_source("extension_" + name, fullname)
     sys.path.remove(paths.EXTENSIONS_DIR)
-
-
-  
-#---------------------------------------------------------------------
-#           GROUP - view, repozitory, repositoryView                  
-#---------------------------------------------------------------------
-class Group(object, EventSource):
-    def __init__(self):
-        EventSource.__init__(self)
-        self.group = []
-        self.id_group = "default"
-        self.name = self.id_group
-        
-    def add(self, source):
-        self.group.append(source)
-
-    def remove(self, source):
-        self.group.remove(self, source)
-        
-    def getList(self):
-        return self.group        
-    
-    def __getitem__(self, index):
-        return self.group[index]
-    
-    def getindex(self, source):
-        return self.group.index(source)
-      
-    def clear(self):
-        for item in self.group.getList():
-            remove(item)
-    
-    def set_id_group(self, id):
-        self.id_group = id        
-    
-    def get_id_group(self):
-        return self.id_group
-    
-
-class GroupView(gtk.Alignment,EventSource):   
-    def __init__(self, group, app):
-        gtk.Alignment.__init__(self, 0, 0, 1, 1)
-        EventSource.__init__(self)
-        
-        self.group = group
-        self.id_group = group.get_id_group()
-        self.list_source = group.getList()
-
-                
-        self.set_callback("group-name-changed", lambda old, new: self.entry_name.set_text(new))
-    
-        self.app = app
-        self.tabview = None
-
-        self.set_padding(5, 0, 10, 10)
-
-        self.table = gtk.Table(5, 3, False)
-        self.table.set_border_width(2)
-        self.table.set_col_spacing(0, 10)
-        self.table.set_col_spacing(1, 2)
-        
-        # frame group
-        self.frame = gtk.Frame()
-        self.frame.set_shadow_type(gtk.SHADOW_OUT)
-        self.frame.show()
-        self.table.attach(self.frame, 0, 6, 0, 4)
-        
-        self.entry_name = gtk.Entry()
-        self.entry_name.set_size_request(40, -1)
-        self.entry_name.set_editable(True)
-        self.entry_name.set_text(self.id_group)
-        self.table.attach(self.entry_name, 0, 1, 0, 1)    
-        
-        # name of data type
-        label = gtk.Label()
-        label.set_alignment(0, 0)
-        label.set_markup("<i> Kaira tracelog group</i>")
-        label.show()
-        self.table.attach(label, 0, 1, 2, 3)
-        
-        label = gtk.Label()
-        label.set_alignment(0, 0)
-        label.set_markup(" ")
-        label.show()
-        self.table.attach(label, 0, 1, 3, 4)
-        
-        self.btns_group1 = []
-        self.btns_group2 = []
-        
-        # unpack button
-        button = gtk.Button("Unpack")
-        button.connect("clicked", lambda w: self._cb_unpack_list_source(self.group))
-        self.table.attach(button, 2, 3, 0, 2, xoptions = gtk.FILL)
-        self.btns_group1.append(button)
-        
-        # attach button
-        button = gtk.Button("Attach")
-        button.connect(
-            "clicked", lambda w: self.emit_event("attach-group", self.group))
-        self.table.attach(button, 3, 4, 0, 2, xoptions = gtk.FILL)
-        self.btns_group1.append(button)
-        
-        # show button
-        button = gtk.Button("Show")
-        button.connect(
-            "clicked", lambda w: self._cb_show())
-        self.table.attach(button, 4, 5, 0, 2, xoptions=gtk.FILL)
-        self.btns_group1.append(button)
-
-        # source menu
-        menu = gtk.Menu()
-
-        item = gtk.MenuItem("Store")
-        item.connect("activate", lambda w: self._cb_store())
-        self.btns_group1.append(item)
-        menu.append(item)
-        self.item_reload = gtk.MenuItem("Reload")
-        self.item_reload.connect("activate", lambda w: self._cb_load())
-        self.item_reload.set_sensitive(0)
-        menu.append(self.item_reload)
-        menu.append(gtk.SeparatorMenuItem())
-
-#        self.item_dispose = gtk.MenuItem("Dispose")
-#        self.item_dispose.connect("activate", lambda w: self._cb_dispose())
-#        self.item_dispose.set_sensitive(1)
-#        self.btns_group1.append(self.item_dispose)
-#        menu.append(self.item_dispose)
-
-        item = gtk.MenuItem("Delete")
-        item.connect("activate", lambda w: self._cb_delete())
-        menu.append(item)
-        
-        
-        menu.append(gtk.SeparatorMenuItem())
-        
-        self.item_rename = gtk.MenuItem("Rename")
-        self.item_rename.connect("activate", lambda w: self._cb_rename(self.group))
-        self.item_rename.set_sensitive(2)
-        self.btns_group1.append(self.item_rename)
-        menu.append(self.item_rename)
-        menu.show_all()
-        
-        menu_btn = gtk.Button(">");
-        menu_btn.connect_object("event-after", self._menu_handler, menu)
-        self.table.attach(menu_btn, 5, 6, 0, 3, xoptions=0)
-        
-        
-        # source component
-        frame = gtk.Frame()
-        frame.set_shadow_type(gtk.SHADOW_OUT)
-        frame.add(self.table)
-
-        self.add(frame)
-        
-    def _menu_handler(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS:
-            widget.popup(None, None, None, event.button, event.time)
-            return True
-        return False
-
-    def _cb_show(self):
-        if self.tabview is None:
-            type = self.source.type
-            view = type.get_view(self.source.data, self.app)
-            if view is None:
-                return
-            tabname = "{0} ({1})".format(
-                self.source.type.short_name, os.path.basename(self.source.name))
-            self.tabview = Tab(tabname, view)
-
-            # modify close meth
-            origin_close = self.tabview.close
-            def new_close():
-                origin_close()
-                self.tabview = None
-            self.tabview.close = new_close
-            self.app.window.add_tab(self.tabview)
-        else:
-            self.app.window.switch_to_tab(self.tabview)
-
-    def _lock_buttons(self):
-        for btn in self.btns_group1:
-            btn.set_sensitive(self.group is not None)
-        for btn in self.btns_group2:
-            btn.set_sensitive(self.group is None)
-
-    def _cb_store(self):
-        for source in self.group.getList():
-            if len(source.type.savers) == 0:
-                self.app.show_message_dialog(
-                    "The type '{0}' cannot be saved.".format(
-                        source.type.name),
-                    gtk.MESSAGE_WARNING)
-            return
-        for source  in self.group.getList():
-            dialog = gtk.FileChooserDialog("Source store",
-                                       self.app.window,
-                                       gtk.FILE_CHOOSER_ACTION_SAVE,
-                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                       gtk.STOCK_SAVE, gtk.RESPONSE_OK))
-            dialog.set_default_response(gtk.RESPONSE_OK)
-            dialog.add_filter(datatypes.get_save_file_filter(source.type))
-
-        try:
-            response = dialog.run()
-            filename = dialog.get_filename()
-        finally:
-            dialog.destroy()
-
-        if load_sourceresponse == gtk.RESPONSE_OK:
-            self.source.store(filename, self.app)
-            self.item_reload.set_sensitive(True)
-            self.item_dispose.set_sensitive(True)
-
-    def _cb_load(self):
-        filenames = []
-                
-        for source in self.list_source:
-            for i in source:
-                filenames.append(i.name)
-        list_source = load_group(filenames, self.app)
-        group = create_group(list_source)
-        self.group.add(list_source)
-        self.app.group_repository.groups[self.group.get_id_group()] = self.group
-        
-        self.emit_event("group-data-changed", group)
-
-    def _cb_dispose(self):
-        self._lock_buttons()
-        for sources in self.group.getList():
-            del sources[:]
-        if self.tabview is not None:
-            self.tabview.close()
-        self.emit_event("group-data-changed", self.group)
-        
-    def _cb_delete(self):
-        self.emit_event("delete-group", self.group)
-        if self.tabview is not None:
-            self.tabview.close()
-
-    def add_source(self, group):
-        self.app.group_repository.add(group)
-       
-    def _cb_unpack_list_source(self, group):
-        if self.tabview is not None:
-            self.tabview.close()
-        
-        group_view = self.app.group_repository.group_views[group.id_group]
-        for list_source in group_view.group.getList():
-            for source in list_source:
-                self.app.sources_repository.load_source(source.name, self.app)
-        self.emit_event("delete-group", group)
-    
-    def _cb_rename(self, group):
-        gr = group
-        del self.app.group_repository.groups[group.id_group]
-        view = self.app.group_repository.group_views[gr.id_group]
-        del self.app.group_repository.group_views[gr.id_group]
-        gr.id_group = self.entry_name.get_text()
-        self.app.group_repository.groups[gr.id_group] = gr 
-        self.app.group_repository.group_views[gr.id_group] = view
-        
-class GroupRepository(object, EventSource):
-    
-    def __init__(self):
-        EventSource.__init__(self)
-        self.groups = {}
-        self.group_views = {}
-        self.index = 0
-        
-        
-    def add(self, group):
-        if self.groups.has_key(group.get_id_group()):
-            self.index += 1
-            group.set_id_group("default_" + str(self.index))
-            self.groups[group.get_id_group()] = group 
-        else:
-            self.groups[group.get_id_group()] = group   
-            
-        self.emit_event("group-added", group)
-        
-    def remove(self, group):
-        if self.groups.has_key(group.get_id_group()):
-            del self.groups[group.get_id_group()]
-            self.emit_event("group-removed", group)
-            return True
-        return False
-    
-    def get_group(self, id_group):
-        if self.groups.has_key(id_group):
-            return self.groups[id_group]
-        return None
-    
-    def get_groups(self):
-        return self.groups
-    
-    def load_group(self, filenames, app, setings = None):
-        list_source = load_group(filenames, app, setings)
-        group = create_group(list_source)
-        self.add(group)
-        
-class GroupRepositoryView(gtk.VBox, EventSource):
-    
-    def __init__(self, repository, app):
-        gtk.VBox.__init__(self)
-        EventSource.__init__(self)
-        
-        self.app = app
-        self.repository = repository
-        
-        self.events = EventCallbacksList()
-        self.events.set_callback(
-            self.repository, "group-added", self._cb_add)
-        self.events.set_callback(
-            self.repository, "group-removed", self._cb_remove)
-        
-        groups = repository.get_groups()
-    
-    def _cb_add(self, group):
-        group_view = GroupView(group, self.app)
-        group_view.set_callback("attach-group", self._cb_attach_group)
-        group_view.set_callback("delete-group", self._cb_delete_group)
-        group_view.set_callback("group-data-changed", self._cb_changed_group)
-        
-        self.app.group_repository.group_views[group.get_id_group()] = group_view
-
-        self.pack_start(group_view, False, False)
-        group_view.show_all()
-    
-    def _cb_remove(self, group):
-        group_view = self.app.group_repository.group_views[group.get_id_group()]
-        
-        group_view.remove_callback("attach-group", self._cb_attach_group)
-        group_view.remove_callback("delete-group", self._cb_delete_group)
-        group_view.remove_callback("group-data-changed", self._cb_changed_group)
-        
-        self.remove(group_view)  
-        
-    def deregister_callbacks(self):
-        self.events.remove_all()
-
-    def _cb_attach_group(self, group):
-        self.emit_event("attach-group", group)
-        
-    def _cb_delete_group(self, group):
-        self.repository.remove(group)
-        
-    def _cb_changed_group(self, list_source):
-        self.emit_event("group-data-changed", list_source)
-        
-    def _cb_add_in_list_source(self, item):
-        self.repository.list_source.append(item)
