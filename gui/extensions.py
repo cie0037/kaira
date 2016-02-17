@@ -1377,7 +1377,7 @@ class GroupView(gtk.Alignment, EventSource):
 
     def _cb_dispose(self):
         self._lock_buttons()
-        for source in self.group: # dispose all sources from group
+        for source in self.group._sources: # dispose all sources from group
             source.data = None
         if self.tabview is not None: # close view on a group
             self.tabview.close()
@@ -1477,9 +1477,9 @@ class GroupsRepositoryView(gtk.VBox, EventSource):
         for group in self.repository:
             group_view = self.group_views[group]
             group_view.remove_callback(
-                "attach-source", self._cb_attach_source)
+                "attach-group", self._cb_attach_group)
             group_view.remove_callback(
-                "delete-source", self._cb_delete_source)
+                "delete-group", self._cb_delete_group)
         self.events.remove_all()
 
     def _cb_attach_group(self, group):
