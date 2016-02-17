@@ -1371,7 +1371,32 @@ class GroupView(gtk.Alignment, EventSource):
             btn.set_sensitive(source.data is None)
 
     def _cb_store(self):
-        pass # TODO: implement me
+        for source in self.group._sources:
+            if len(source.type.savers) == 0:
+                self.app.show_message_dialog(
+                    "The type '{0}' cannot be saved.".format(
+                        source.type.name),
+                    gtk.MESSAGE_WARNING)
+            return
+        dialog = gtk.FileChooserDialog("Source store",
+                                       self.app.window,
+                                       gtk.FILE_CHOOSER_ACTION_SAVE,
+                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                       gtk.STOCK_SAVE, gtk.RESPONSE_OK))
+        dialog.set_default_response(gtk.RESPONSE_OK)
+        dialog.add_filter(datatypes.get_save_file_filter(source.type))
+
+        try:
+            response = dialog.run()
+            filename = dialog.get_filename()
+        finally:
+            dialog.destroy()
+
+        if response == gtk.RESPONSE_OK:
+            source.store(filename, self.app)
+            self.item_reload.set_sensitive(True)
+            self.item_dispose.set_sensitive(True)
+        #pass # TODO: implement me
 
     def _cb_load(self):
         for source in self.group._sources:
