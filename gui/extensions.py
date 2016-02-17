@@ -1187,7 +1187,12 @@ class OperationManager(gtk.VBox):
                 "No operation is chosen.", gtk.MESSAGE_INFO)
 
     def _cb_attach_group(self, group):
-        pass # TODO: implement me
+        operation = self.full_view.operation
+        if operation is not None:
+            operation.attach_group(self.app, group)
+        else:
+            self.app.show_message_dialog(
+                "No operation is chosen.", gtk.MESSAGE_INFO)
 
     def _cb_detach_source(self, source):
         operation = self.full_view.operation
