@@ -1325,7 +1325,7 @@ class GroupView(gtk.Alignment, EventSource):
 
         self.item_reload = gtk.MenuItem("Reload")
         self.item_reload.connect("activate", lambda w: self._cb_load())
-        self.item_reload.set_sensitive(0)
+        self.item_reload.set_sensitive(1)
         menu.append(self.item_reload)
         menu.append(gtk.SeparatorMenuItem())
 
@@ -1364,21 +1364,26 @@ class GroupView(gtk.Alignment, EventSource):
         pass # TODO: implement me
 
     def _lock_buttons(self):
+        source = self.group._sources[0]
         for btn in self.btns_group1:
-            btn.set_sensitive(self.group is not None)
+            btn.set_sensitive(source.data is not None)
         for btn in self.btns_group2:
-            btn.set_sensitive(self.group is None)
+            btn.set_sensitive(source.data is None)
 
     def _cb_store(self):
         pass # TODO: implement me
 
     def _cb_load(self):
-        pass # TODO: implement me
+        for source in self.group._sources:
+            source.data = load_source(
+                source.name, self.app, source.settings).data
+        self._lock_buttons()
+        self.emit_event("group-data-changed", self.group)
 
     def _cb_dispose(self):
-        self._lock_buttons()
         for source in self.group._sources: # dispose all sources from group
             source.data = None
+        self._lock_buttons()
         if self.tabview is not None: # close view on a group
             self.tabview.close()
         self.emit_event("group-data-changed", self.group)
