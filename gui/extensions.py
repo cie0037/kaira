@@ -213,7 +213,7 @@ class SourceView(gtk.Alignment, EventSource):
             tabname = "{0} ({1})".format(
                 self.source.type.short_name, os.path.basename(self.source.name))
             self.tabview = Tab(tabname, view)
-
+            # error in close
             # modify close method
             origin_close = self.tabview.close
             def new_close():
@@ -1366,7 +1366,25 @@ class GroupView(gtk.Alignment, EventSource):
         return False
 
     def _cb_show(self):
-        pass # TODO: implement me
+        if self.tabview is None:
+            for source in self.group._sources:
+                type = source.type
+                view = type.get_view(source.data, self.app)               
+                if view is None:
+                    return
+                tabname = "{0} ({1})".format(
+                    source.type.short_name, os.path.basename(source.name))
+                self.tabview = Tab(tabname, view)
+
+                # modify close meth
+                origin_close = self.tabview.close
+                def new_close():
+                    origin_close()
+                    self.tabview = None
+                self.tabview.close = new_close
+                self.app.window.add_tab(self.tabview)
+        else:
+            self.app.window.switch_to_tab(self.tabview)
 
     def _lock_buttons(self):
         source = self.group._sources[0]
