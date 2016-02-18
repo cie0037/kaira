@@ -722,7 +722,7 @@ class Operation(object, EventSource):
         self.emit_event("no-free-slot", source)
 
     def attach_group(self, app, group):
-        pass # TODO: implement me
+        self.argument.attach_source(group)
 
     def all_sources_filled(self):
         for argument in self.arguments:
@@ -1396,7 +1396,6 @@ class GroupView(gtk.Alignment, EventSource):
             source.store(filename, self.app)
             self.item_reload.set_sensitive(True)
             self.item_dispose.set_sensitive(True)
-        #pass # TODO: implement me
 
     def _cb_load(self):
         for source in self.group._sources:
