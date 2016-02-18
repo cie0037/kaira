@@ -526,7 +526,10 @@ class Argument(object, EventSource):
             self.emit_event("argument-changed")
 
     def get_data(self):
-        if self.is_list() or self.is_group():
+        if self.is_group():
+            for group in self._sources[:self._real_attached]:
+                return [source.data for source in group._sources]
+        if self.is_list():
             return [ source.data
                      for source in self._sources[:self._real_attached] ]
         else:
