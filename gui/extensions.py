@@ -729,6 +729,8 @@ class Operation(object, EventSource):
             count = 0
             for idx in xrange(argument.sources_count()):
                 src = self.argument.get_source(idx)
+                if type(src).__name__ == "Group":
+                    return True
                 if src is not None and src.data is not None:
                     count += 1
             if count < self.argument.minimum:
@@ -1244,6 +1246,7 @@ class Group(object, EventSource):
     def __init__(self, sources=[]):
         EventSource.__init__(self)
         self._sources = sources
+        self.name = "group {}".format(utils.get_unique_id())
 
     def add(self, source):
         self._sources.append(source)
@@ -1263,7 +1266,6 @@ class GroupView(gtk.Alignment, EventSource):
     def __init__(self, group, app):
         gtk.Alignment.__init__(self, 0, 0, 1, 1)
         EventSource.__init__(self)
-        self.group_name = "group {}".format(utils.get_unique_id())
         self.group = group
         self.set_callback("group-name-changed",
                           lambda old, new: self.entry_name.set_text(new))
@@ -1281,7 +1283,7 @@ class GroupView(gtk.Alignment, EventSource):
         self.entry_name = gtk.Entry()
         self.entry_name.set_size_request(40, -1)
         self.entry_name.set_editable(True)
-        self.entry_name.set_text(self.group_name)
+        self.entry_name.set_text(self.group.name)
         self.table.attach(self.entry_name, 0, 1, 0, 1)
 
         # name of data type
