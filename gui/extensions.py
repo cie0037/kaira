@@ -1225,8 +1225,7 @@ class OperationManager(gtk.VBox):
                         param.detach_source()
 
     def _cb_detach_group_sources(self, group):
-        for source in group:
-            self._cb_detach_source_from_all_operations(source)
+        self._cb_detach_source_from_all_operations(group)
 
     def _cb_source_data_changed(self, source):
         for operation in self.loaded_operations:
@@ -1246,9 +1245,10 @@ class OperationManager(gtk.VBox):
 
 class Group(object, EventSource):
 
-    def __init__(self, sources=[]):
+    def __init__(self, sources=[], type = datatypes.Type("Group")):
         EventSource.__init__(self)
         self._sources = sources
+        self.type = type
         self.name = "group {}".format(utils.get_unique_id())
 
     def add(self, source):
@@ -1367,22 +1367,18 @@ class GroupView(gtk.Alignment, EventSource):
 
     def _cb_show(self):
         if self.tabview is None:
-            for source in self.group._sources:
-                type = source.type
-                view = type.get_view(source.data, self.app)               
-                if view is None:
-                    return
-                tabname = "{0} ({1})".format(
-                    source.type.short_name, os.path.basename(source.name))
-                self.tabview = Tab(tabname, view)
-
-                # modify close meth
-                origin_close = self.tabview.close
-                def new_close():
-                    origin_close()
-                    self.tabview = None
-                self.tabview.close = new_close
-                self.app.window.add_tab(self.tabview)
+            tabname = "Group ({0})".format(self.group.name)
+            type1 = self.group.type
+            view = type1.group_view(self.group._sources, self.app)
+            if view is None:
+                return
+            self.tabview = Tab(tabname, view)
+            origin_close = self.tabview.close
+            def new_close():
+                origin_close()
+                self.tabview = None
+            self.tabview.close = new_close
+            self.app.window.add_tab(self.tabview)
         else:
             self.app.window.switch_to_tab(self.tabview)
 
