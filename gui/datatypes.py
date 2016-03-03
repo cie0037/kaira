@@ -24,6 +24,7 @@ import gtk
 import gtkutils
 import settingswindow
 import runview
+import rungroupview
 import numpy as np
 from tracelog import TraceLog
 from table import Table
@@ -75,7 +76,7 @@ class Type(object):
 
         """
         return None
-
+    
     def register_load_function(self, suffix, function):
         """Register a loading function to a file suffix.
 
@@ -99,6 +100,8 @@ class Type(object):
         if default or self.default_saver is None:
             self.default_saver = suffix
 
+    def group_view(self,list_sources, app):
+        return rungroupview.RunGroupView(list_sources, app)
 
 # *****************************************************************************
 # module functions
@@ -297,3 +300,12 @@ def csv_view(table, app):
 t_table.get_view = csv_view
 
 types_repository.append(t_table)
+
+# -----------------------------------------------------------------------------
+# Group type
+
+t_group = Type("Group")
+#def group_view(self,list_sources, app):
+#        return rungroupview.RunGroupView(list_sources, app)
+#t_group.get_view = group_view
+types_repository.append(t_group)
