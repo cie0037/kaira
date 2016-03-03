@@ -29,7 +29,7 @@ class RunGroupView(gtk.VBox):
             self.netinstance_view.set_runinstance(source.data.first_runinstance)
         
         self.views = [ ("Replay", self.netinstance_view) ]
-        self.views.append(self.graph_view(self.list_sources))
+        self.views.append(self.group_time_graph_view(self.list_sources))
         
         self.pack_start(self._controls(self.list_sources), False, False)
         for name, item in self.views:
@@ -126,6 +126,8 @@ class RunGroupView(gtk.VBox):
             self.button1.hide()
             self.button2.hide()
             self.scale.hide()
+            self.counter_label.set_text("")
+            self.info_label.set_markup("")
 
     def save_as_svg(self, filename):
         self.netinstance_view.save_as_svg(filename)
@@ -154,6 +156,6 @@ class RunGroupView(gtk.VBox):
     def get_tracelog(self):
         return self.tracelog 
 
-    def graph_view(self, list_tracelogs):
-        return ("Prvni Graf", charts.group_time_chart(list_tracelogs))
+    def group_time_graph_view(self, list_tracelogs):
+        return ("Group time graph", charts.group_time_chart(list_tracelogs))
         
