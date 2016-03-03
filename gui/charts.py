@@ -37,6 +37,9 @@ from matplotlib.projections import register_projection \
 from matplotlib.figure      import Figure as mpl_Figure
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg \
                                                as mpl_FigureCanvas
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import numpy as np
 
 class LineConfig:
 
@@ -749,7 +752,7 @@ class ChartWidget(gtk.VBox):
             self.figure.savefig(dialog.get_filename())
 
         dialog.destroy()
-
+    
 #*******************************************************************************
 # Defined method for "standard" graphs:
 
@@ -947,3 +950,19 @@ def _register_new_types_charts():
     mpl_register_projection(TimeChart)
 
 _register_new_types_charts()
+
+def group_time_chart(list_sources, list_average = None, list_incident = None):        
+    figure = mpl_Figure()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+
+    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
+        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
+    ax.set_title("Pokus")
+    #ax.set_xlabel(xlabel)
+    #ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+    
