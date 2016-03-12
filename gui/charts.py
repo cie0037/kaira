@@ -965,4 +965,33 @@ def group_time_chart(list_sources, list_average = None, list_incident = None):
     #ax.set_ylabel(ylabel)
 
     return ChartWidget(figure)
-    
+
+def group_amount_data_chart(list_sources, list_average = None, list_incident = None):
+    figure = mpl_Figure()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+
+    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
+        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
+    ax.set_title("Pokus")
+    #ax.set_xlabel(xlabel)
+    #ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+
+def group_histogram_chart(list_sources, list_average = None, list_incident = None):
+    figure = mpl_Figure()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+
+    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
+        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
+    ax.set_title("Pokus")
+    #ax.set_xlabel(xlabel)
+    #ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
