@@ -100,8 +100,8 @@ class Type(object):
         if default or self.default_saver is None:
             self.default_saver = suffix
 
-    def group_view(self,list_sources, app):
-        return rungroupview.RunGroupView(list_sources, app)
+    def group_view(self,group, app):
+        return rungroupview.RunGroupView(group, app)
 
 # *****************************************************************************
 # module functions
