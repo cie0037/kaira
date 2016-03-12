@@ -1369,7 +1369,7 @@ class GroupView(gtk.Alignment, EventSource):
         if self.tabview is None:
             tabname = "Group ({0})".format(self.group.name)
             type1 = self.group.type
-            view = type1.group_view(self.group._sources, self.app)
+            view = type1.group_view(self.group, self.app)
             if view is None:
                 return
             self.tabview = Tab(tabname, view)
