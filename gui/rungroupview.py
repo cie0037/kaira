@@ -9,17 +9,24 @@ import utils
 import netview
 import runview
 from exportri import place_counter_name
+from events import EventSource, EventCallbacksList
 
 
-class RunGroupView(gtk.VBox):
-    
+class RunGroupView(gtk.VBox, EventSource):
+
     def __init__(self, group, app):
         gtk.VBox.__init__(self)
+        EventSource.__init__(self)
+
         self.group = group
         self.group_views =[]
         self.views = []
+        self.source = None
         self.tracelog = None
         
+        self.group.set_callback("add-source", self.add_source)
+        self.group.set_callback("detach-source", self.detach_source)
+
         button = gtk.Button("Export sequence")
         button.connect("clicked", lambda w:
                 app.save_sequence_into_project(self.export_sequence()))
@@ -27,16 +34,18 @@ class RunGroupView(gtk.VBox):
         self.netinstance_view = netview.NetView(app, None, other_widgets=[button])            
         self.netinstance_view.set_config(
             netview.NetViewCanvasConfig(self.netinstance_view))
+
         for source in self.group._sources:
             self.netinstance_view.set_runinstance(source.data.first_runinstance)
-        
+
         self.group_views.append(self.group_time_graph_view(self.group._sources))
         self.group_views.append(self.group_amount_data_view(self.group._sources))
         self.group_views.append(self.group_histogram_view(self.group._sources))
-        
-        self.pack_start(self._controls(self.group), False, False)
+
         for name, item in self.group_views:
-            self.pack_start(item)
+            self.pack_end(item)
+
+        self.pack_start(self._controls(self.group), False, False)
 
     def _controls(self, group):
         list_sources = group._sources
@@ -44,11 +53,16 @@ class RunGroupView(gtk.VBox):
             self.scale = gtk.HScale(gtk.Adjustment(value=0, lower=0,
                 upper=source.data.get_runinstances_count(), step_incr=1, page_incr=1, page_size=1))
             toolbar = gtk.HBox(False)
-        
-        self.combo1 = gtk.combo_box_new_text()
-        self.combo1.append_text("{0}".format(group.name))
+
+        store = gtk.ListStore(str, object)
+        store.append([group.name, group])
         for source in list_sources:
-            self.combo1.append_text(os.path.basename(source.name))
+            store.append([os.path.basename(source.name), [source]])
+
+        self.combo1 = gtk.ComboBox(store)
+        cell = gtk.CellRendererText()
+        self.combo1.pack_start(cell, True)
+        self.combo1.add_attribute(cell, 'text', 0)
         self.combo1.set_active(0)
         self.combo1.connect("changed", self._change_source)
         toolbar.pack_start(self.combo1, False, False)
@@ -59,15 +73,15 @@ class RunGroupView(gtk.VBox):
             self.combo2.append_text(name)
         self.combo2.set_active(0)
         self.combo2.connect("changed", self._view_change)
-        toolbar.pack_start(self.combo2, False, False)        
-        
+        toolbar.pack_start(self.combo2, False, False)
+
         self.button1 = gtk.Button("<<")
         self.button1.connect("clicked", lambda w: self.scale.set_value(max(0, self.get_event_index() - 1)))
         toolbar.pack_start(self.button1, False, False)
 
         self.counter_label = gtk.Label()
         toolbar.pack_start(self.counter_label, False, False)
-        
+
         self.button2 = gtk.Button(">>")
         self.button2.connect("clicked", lambda w:
             self.scale.set_value(min(self.tracelog.get_runinstances_count() - 1,
@@ -83,13 +97,13 @@ class RunGroupView(gtk.VBox):
         
         if self.tracelog is not None: 
             self.update_labels()
-            
+
         toolbar.show_all()
         if self.tracelog is None:
             self.button1.hide()
             self.button2.hide()
             self.scale.hide()
-            
+
         return toolbar
     
     def get_event_index(self):
@@ -131,9 +145,13 @@ class RunGroupView(gtk.VBox):
                 
     def _change_source(self, w):
         views = []
+        index = w.get_active_iter()
         text = w.get_active_text()
-        for source in self.group._sources:
-            if os.path.basename(source.name)== text:
+        if iter != None:
+            model = w.get_model()
+            list = model[index][1]
+            source = list[0]
+            if len(source.name) > 10:
                 self.tracelog = source.data
                 table = self.tracelog.data
         
@@ -154,11 +172,12 @@ class RunGroupView(gtk.VBox):
                     self.views = views    
                     for name, item in views:
                         self.pack_start(item)
-                        
+
                 for x in xrange(len(self.views)):
                     self.combo2.remove_text(0)
                 for name, item in self.views:
-                    self.combo2.append_text(name)        
+                    self.combo2.append_text(name)
+                    self.combo2.set_active(0)        
 
         if text == self.group.name:
             self.scale.set_value(max(0,self.get_event_index()-self.get_event_index()))
@@ -170,9 +189,27 @@ class RunGroupView(gtk.VBox):
             self.info_label.set_markup("")
             for x in xrange(len(self.views)):
                     self.combo2.remove_text(0)
-            
+
+            self.combo2.append_text("Select graph")
             for name, item in self.group_views:
                     self.combo2.append_text(name)
+                    self.combo2.set_active(0)
+
+    def add_source(self, group):
+        self.combo1
+
+    def detach_source(self):
+        text = self.combo1.get_active_text()
+        x=1
+        for source in self.group._sources:
+            if text == os.path.basename(source.name):
+                sources.append(source)
+                self.combo3.append_text(os.path.basename(source.name))
+                self.combo1.remove_text(x)
+                self.group._sources.remove(source)
+                x-=1
+            x+=1
+        self.combo1.set_active(0)
 
     def save_as_svg(self, filename):
         self.netinstance_view.save_as_svg(filename)
@@ -183,7 +220,7 @@ class RunGroupView(gtk.VBox):
                 return "{0:0>{1}}".format(num, len(str(max)))
             else:
                 return "-" * len(str(max))
-            
+
         tracelog = self.get_tracelog()
         index = self.get_event_index()
         last_index = tracelog.get_runinstances_count() - 1
@@ -197,7 +234,7 @@ class RunGroupView(gtk.VBox):
             tracelog.get_event_name(index),
             time)
         self.info_label.set_markup(text)  
-        
+
     def get_tracelog(self):
         return self.tracelog 
 
