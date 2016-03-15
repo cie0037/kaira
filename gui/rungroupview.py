@@ -24,8 +24,8 @@ class RunGroupView(gtk.VBox, EventSource):
         self.source = None
         self.tracelog = None
         
-        self.group.set_callback("add-source", self.add_source)
-        self.group.set_callback("detach-source", self.detach_source)
+        self.set_callback("add-source", self._add_source)
+        self.set_callback("detach-source", self._detach_source)
 
         button = gtk.Button("Export sequence")
         button.connect("clicked", lambda w:
@@ -54,12 +54,12 @@ class RunGroupView(gtk.VBox, EventSource):
                 upper=source.data.get_runinstances_count(), step_incr=1, page_incr=1, page_size=1))
             toolbar = gtk.HBox(False)
 
-        store = gtk.ListStore(str, object)
-        store.append([group.name, group])
+        self.store = gtk.ListStore(str, object)
+        self.store.append([group.name, group])
         for source in list_sources:
-            store.append([os.path.basename(source.name), [source]])
+            self.store.append([os.path.basename(source.name), [source]])
 
-        self.combo1 = gtk.ComboBox(store)
+        self.combo1 = gtk.ComboBox(self.store)
         cell = gtk.CellRendererText()
         self.combo1.pack_start(cell, True)
         self.combo1.add_attribute(cell, 'text', 0)
@@ -147,7 +147,7 @@ class RunGroupView(gtk.VBox, EventSource):
         views = []
         index = w.get_active_iter()
         text = w.get_active_text()
-        if iter != None:
+        if index != None:
             model = w.get_model()
             list = model[index][1]
             source = list[0]
@@ -196,19 +196,27 @@ class RunGroupView(gtk.VBox, EventSource):
                     self.combo2.set_active(0)
 
     def add_source(self, group):
-        self.combo1
+        self.emit_event("add-source", group)
 
-    def detach_source(self):
-        text = self.combo1.get_active_text()
-        x=1
+    def detach_source(self, source):
+        self.group.remove(source)
+        self.emit_event("detach-source")
+
+    def _add_source(self, group):
+        self.group = group
+        self.store.clear()
+        self.store.append([group.name, group]) 
         for source in self.group._sources:
-            if text == os.path.basename(source.name):
-                sources.append(source)
-                self.combo3.append_text(os.path.basename(source.name))
-                self.combo1.remove_text(x)
-                self.group._sources.remove(source)
-                x-=1
-            x+=1
+            self.store.append([os.path.basename(source.name), [source]])
+
+        self.combo1.set_active(0)
+
+    def _detach_source(self):
+        self.store.clear()
+        self.store.append([self.group.name, self.group])
+        for source in self.group._sources:
+            self.store.append([os.path.basename(source.name), [source]])
+
         self.combo1.set_active(0)
 
     def save_as_svg(self, filename):
@@ -246,3 +254,4 @@ class RunGroupView(gtk.VBox, EventSource):
 
     def group_histogram_view(self, list_tracelogs):
         return ("Group histogram graph", charts.group_histogram_chart(list_tracelogs))
+    
