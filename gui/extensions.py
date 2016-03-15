@@ -1382,10 +1382,10 @@ class GroupView(gtk.Alignment, EventSource):
         if self.tabview is None:
             tabname = "Group ({0})".format(self.group.name)
             type1 = self.group.type
-            view = type1.group_view(self.group, self.app)
-            if view is None:
+            self.view = type1.group_view(self.group, self.app)
+            if self.view is None:
                 return
-            self.tabview = Tab(tabname, view)
+            self.tabview = Tab(tabname, self.view)
             origin_close = self.tabview.close
             def new_close():
                 origin_close()
@@ -1454,8 +1454,10 @@ class GroupView(gtk.Alignment, EventSource):
                 lambda s : s.picked):
             self.group.add(source)
             self.app.sources_repository.remove(source)
-            self.emit_event("add-source", self.group)
-        rungroupview.add_source(self.group)
+        try:
+            self.view.add_source(self.group)
+        except:
+            print("Open tab view")
 
     def _detach_from_group(self, group):
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -1490,15 +1492,17 @@ class GroupView(gtk.Alignment, EventSource):
         if iter != None:
             model = w.get_model()
             source = model[iter][1]
-            #source = list[0]
-            self.group.remove(source)
+            self.group._sources.remove(source)
             self.store.remove(iter)
             self.app.sources_repository.add(source)
             self.combo1.set_active(0)
             if self.tabview is not None:
                 self.tabview.close()
 
-        rungroupview.detach_source(source)
+        try:
+            self.view.detach_source(source)
+        except:
+            print("Open tabview")
 
     def _cb_unpack_group(self, group):
         for source in group:
@@ -1514,7 +1518,7 @@ class GroupsRepository(object, EventSource):
     def __init__(self):
         EventSource.__init__(self)
         self._groups = []
-        
+
     def __iter__(self):
         return iter(self._groups)
 
