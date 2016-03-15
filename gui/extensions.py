@@ -21,6 +21,7 @@
 import gtk
 import drawing
 import paths
+import rungroupview
 
 import os
 import sys
@@ -1146,8 +1147,9 @@ class OperationManager(gtk.VBox):
                 lambda s : s.picked):
             selected_sources.append(source)
             self.app.sources_repository.remove(source)
-        self.app.group_repository.add(Group(selected_sources))
-               
+        if len(selected_sources)>0:
+            self.app.group_repository.add(Group(selected_sources))
+
     def _cb_operation_selected(self, operation):
         if self.full_view.operation == operation:
             return
@@ -1255,7 +1257,7 @@ class Group(object, EventSource):
         self._sources.append(source)
 
     def remove(self, source):
-        self._sources.remove(self, source)
+        self._sources.remove(source)
 
     def __getitem__(self, index):
         return self._sources[index]
@@ -1343,6 +1345,17 @@ class GroupView(gtk.Alignment, EventSource):
         item = gtk.MenuItem("Delete")
         item.connect("activate", lambda w: self._cb_delete())
         menu.append(item)
+
+        menu.append(gtk.SeparatorMenuItem())
+
+        item = gtk.MenuItem("Add in group")
+        item.connect("activate", lambda w: self._add_in_group())
+        menu.append(item)
+
+        item = gtk.MenuItem("Detach")
+        item.connect("activate", lambda w: self._detach_from_group(self.group))
+        menu.append(item)
+
         menu.show_all()
 
         menu_btn = gtk.Button(">");
@@ -1435,6 +1448,57 @@ class GroupView(gtk.Alignment, EventSource):
         if self.tabview is not None:
             self.tabview.close()
         self.emit_event("delete-group", self.group)
+
+    def _add_in_group(self):
+        for source in self.app.sources_repository.get_sources(
+                lambda s : s.picked):
+            self.group.add(source)
+            self.app.sources_repository.remove(source)
+            self.emit_event("add-source", self.group)
+        rungroupview.add_source(self.group)
+
+    def _detach_from_group(self, group):
+        window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        window.set_title("Group sources")
+        window.set_size_request(230, 30)
+        frame = gtk.Frame()
+        frame.show()
+
+        self.store = gtk.ListStore(str, object)
+        self.store.append(["Select source", None])
+        for source in group._sources:
+            self.store.append([os.path.basename(source.name), source])
+
+        self.combo1 = gtk.ComboBox(self.store)
+        cell = gtk.CellRendererText()
+        self.combo1.pack_start(cell, True)
+        self.combo1.add_attribute(cell, 'text', 0)
+        self.combo1.set_active(0)
+        self.combo1.connect("changed", self._detach_source)
+        self.combo1.show()
+
+        frame.add(self.combo1)
+        window.add(frame)
+        window.show()
+
+        if len(self.store) < 2:
+            window.destroy()
+
+    def _detach_source(self, w):
+        iter = w.get_active_iter()
+        text = w.get_active_text()
+        if iter != None:
+            model = w.get_model()
+            source = model[iter][1]
+            #source = list[0]
+            self.group.remove(source)
+            self.store.remove(iter)
+            self.app.sources_repository.add(source)
+            self.combo1.set_active(0)
+            if self.tabview is not None:
+                self.tabview.close()
+
+        rungroupview.detach_source(source)
 
     def _cb_unpack_group(self, group):
         for source in group:
