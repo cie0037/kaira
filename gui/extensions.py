@@ -1353,7 +1353,7 @@ class GroupView(gtk.Alignment, EventSource):
         menu.append(item)
 
         item = gtk.MenuItem("Detach")
-        item.connect("activate", lambda w: self._detach_from_group(self.group))
+        item.connect("activate", lambda w: self._detach_from_group())
         menu.append(item)
 
         menu.show_all()
@@ -1459,7 +1459,7 @@ class GroupView(gtk.Alignment, EventSource):
         except:
             print("Open tab view")
 
-    def _detach_from_group(self, group):
+    def _detach_from_group(self):
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         window.set_title("Group sources")
         window.set_size_request(230, 30)
@@ -1468,9 +1468,8 @@ class GroupView(gtk.Alignment, EventSource):
 
         self.store = gtk.ListStore(str, object)
         self.store.append(["Select source", None])
-        for source in group._sources:
+        for source in self.group._sources:
             self.store.append([os.path.basename(source.name), source])
-
         self.combo1 = gtk.ComboBox(self.store)
         cell = gtk.CellRendererText()
         self.combo1.pack_start(cell, True)
@@ -1483,26 +1482,21 @@ class GroupView(gtk.Alignment, EventSource):
         window.add(frame)
         window.show()
 
-        if len(self.store) < 2:
-            window.destroy()
-
     def _detach_source(self, w):
         iter = w.get_active_iter()
         text = w.get_active_text()
         if iter != None:
             model = w.get_model()
             source = model[iter][1]
-            self.group._sources.remove(source)
-            self.store.remove(iter)
-            self.app.sources_repository.add(source)
-            self.combo1.set_active(0)
-            if self.tabview is not None:
-                self.tabview.close()
-
-        try:
-            self.view.detach_source(source)
-        except:
-            print("Open tabview")
+            if source in self.group._sources:
+                self.store.remove(iter)
+                self.group.remove(source)
+                self.app.sources_repository.add(source)
+                self.combo1.set_active(0)
+                try:
+                    self.view.detach_source(source)
+                except:
+                    print("Open tabview")
 
     def _cb_unpack_group(self, group):
         for source in group:
