@@ -8,6 +8,7 @@ import charts
 import utils
 import netview
 import runview
+#import extensions.tracelogprocessing
 from exportri import place_counter_name
 from events import EventSource, EventCallbacksList
 
@@ -23,7 +24,7 @@ class RunGroupView(gtk.VBox, EventSource):
         self.views = []
         self.source = None
         self.tracelog = None
-        
+
         self.set_callback("add-source", self._add_source)
         self.set_callback("detach-source", self._detach_source)
 
@@ -38,9 +39,9 @@ class RunGroupView(gtk.VBox, EventSource):
         for source in self.group._sources:
             self.netinstance_view.set_runinstance(source.data.first_runinstance)
 
-        self.group_views.append(self.group_time_graph_view(self.group._sources))
-        self.group_views.append(self.group_amount_data_view(self.group._sources))
-        self.group_views.append(self.group_histogram_view(self.group._sources))
+        self.group_views.append(self.group_time_graph_prepare(self.group._sources))
+        self.group_views.append(self.group_amount_data_prepare(self.group._sources))
+        self.group_views.append(self.group_histogram_prepare(self.group._sources))
 
         for name, item in self.group_views:
             self.pack_end(item)
@@ -48,15 +49,14 @@ class RunGroupView(gtk.VBox, EventSource):
         self.pack_start(self._controls(self.group), False, False)
 
     def _controls(self, group):
-        list_sources = group._sources
-        for source in list_sources:
+        for source in group._sources:
             self.scale = gtk.HScale(gtk.Adjustment(value=0, lower=0,
                 upper=source.data.get_runinstances_count(), step_incr=1, page_incr=1, page_size=1))
             toolbar = gtk.HBox(False)
 
         self.store = gtk.ListStore(str, object)
         self.store.append([group.name, group])
-        for source in list_sources:
+        for source in group._sources:
             self.store.append([os.path.basename(source.name), [source]])
 
         self.combo1 = gtk.ComboBox(self.store)
@@ -68,7 +68,7 @@ class RunGroupView(gtk.VBox, EventSource):
         toolbar.pack_start(self.combo1, False, False)
 
         self.combo2 = gtk.combo_box_new_text()
-        self.combo2.append_text("Select graph")
+        self.combo2.append_text("Select chart")
         for name, item in self.group_views:
             self.combo2.append_text(name)
         self.combo2.set_active(0)
@@ -142,7 +142,7 @@ class RunGroupView(gtk.VBox, EventSource):
                     item.get_figure().canvas.grab_focus()
             else:
                 item.hide()
-                
+
     def _change_source(self, w):
         views = []
         index = w.get_active_iter()
@@ -154,7 +154,7 @@ class RunGroupView(gtk.VBox, EventSource):
             if len(source.name) > 10:
                 self.tracelog = source.data
                 table = self.tracelog.data
-        
+
                 net = self.tracelog.project.nets[0]
                 processes = range(self.tracelog.process_count)
                 transitions = [ t for t in net.transitions() if t.trace_fire ]
@@ -190,24 +190,29 @@ class RunGroupView(gtk.VBox, EventSource):
             for x in xrange(len(self.views)):
                     self.combo2.remove_text(0)
 
-            self.combo2.append_text("Select graph")
+            self.combo2.append_text("Select chart")
             for name, item in self.group_views:
                     self.combo2.append_text(name)
                     self.combo2.set_active(0)
 
-    def add_source(self, group):
-        self.emit_event("add-source", group)
+    def add_source(self):
+        self.emit_event("add-source")
 
-    def detach_source(self, source):
-        self.group.remove(source)
+    def detach_source(self):
         self.emit_event("detach-source")
 
-    def _add_source(self, group):
-        self.group = group
+    def _add_source(self):
         self.store.clear()
-        self.store.append([group.name, group]) 
+        self.store.append([self.group.name, self.group])
         for source in self.group._sources:
             self.store.append([os.path.basename(source.name), [source]])
+
+        self.group_views[0] = (self.group_time_graph_prepare(self.group._sources))
+        self.group_views[1] = (self.group_amount_data_prepare(self.group._sources))
+        self.group_views[2] = (self.group_histogram_prepare(self.group._sources))
+
+        for name, item in self.group_views:
+            self.pack_end(item)
 
         self.combo1.set_active(0)
 
@@ -216,6 +221,13 @@ class RunGroupView(gtk.VBox, EventSource):
         self.store.append([self.group.name, self.group])
         for source in self.group._sources:
             self.store.append([os.path.basename(source.name), [source]])
+
+        self.group_views[0] = (self.group_time_graph_prepare(self.group._sources))
+        self.group_views[1] = (self.group_amount_data_prepare(self.group._sources))
+        self.group_views[2] = (self.group_histogram_prepare(self.group._sources))
+
+        for name, item in self.group_views:
+            self.pack_end(item)
 
         self.combo1.set_active(0)
 
@@ -246,12 +258,140 @@ class RunGroupView(gtk.VBox, EventSource):
     def get_tracelog(self):
         return self.tracelog 
 
-    def group_time_graph_view(self, list_tracelogs):
-        return ("Group time graph", charts.group_time_chart(list_tracelogs))
-    
-    def group_amount_data_view(self, list_tracelogs):
-        return ("Group amount data graph", charts.group_amount_data_chart(list_tracelogs))
+    def group_time_graph_prepare(self, list_sources):
+        required = ["Event", "Process", "Duration"]
+        tables, tracelogs_processes, items_places = self.preparation(list_sources, "time")
 
-    def group_histogram_view(self, list_tracelogs):
-        return ("Group histogram graph", charts.group_histogram_chart(list_tracelogs))
+        return ("Group time chart", charts.group_time_chart("Group time chart", tables))
     
+    def group_amount_data_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        result = []
+        tables, group_processes, group_places = self.preparation(list_sources, "tokens")
+        for places in group_places:
+            result = result +[place_counter_name(place) for place in places]
+
+        required = ["Event", "Process", "Time"] + result
+
+        for table in tables:
+            header =table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        filters = [("Event", f_eq, 'C')]
+        i = 1
+        x = 0
+        y = 0
+        z = 0
+        while x < len(tables):
+            i +=1
+            table = tables[x]
+            processes = group_processes[x]
+            places = group_places[x]
+            while y < len(places):
+                place = places[y]
+                columns = ["Time", place_counter_name(place)]
+                while z < len(processes):
+                    p = processes[z]
+                    group_names.append("{0}@{1}".format(place.get_name_or_id(), p))
+                    counts = table.select(columns, filters + [("Process", f_eq, p)])
+                    group_values.append((counts[columns[0]], counts[columns[1]]))
+                    break
+                break
+            if x == len(tables)-1:
+                x =0
+                z +=1
+                if z == len(processes):
+                    y +=1
+                    z =0
+                if y == len(places):
+                    break
+            else:
+                x +=1
+
+        return ("Number of tokens in places",
+                    charts.group_amount_data_chart(group_names, group_values,
+                        "Number of tokens in places", "Places", "Count"))
+
+    def group_histogram_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        required = ["Event", "Process", "Duration", "ID"]
+        tables, group_processes, group_transitions  = self.preparation(list_sources, "processes")
+
+        for table in tables:
+            header = table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        columns = ["Duration"]
+        filters = [("Event", f_eq, 'T')]
+
+        x = 0
+        y = 0
+        z = 0
+        while x < len(tables):
+            table = tables[x]
+            transitions = group_transitions[x]
+            processes = group_processes[x]
+            while y < len(transitions):
+                t = transitions[y]
+                f = filters + [("ID", f_eq, t.id)]
+                while z < len(processes):
+                    p = processes[z]
+                    group_names.append("{0}`{1}".format(t.get_name_or_id(), p))
+                    tets = table.select(columns, f + [("Process", f_eq, p)])
+                    if len(tets) == 0:
+                        tets = [0]
+                    group_values.append(tets)
+                    break
+                break
+            if x == len(tables)-1:
+                x =0
+                z +=1
+                if z == len(processes):
+                    y +=1
+                    z =0
+                if y == len(transitions):
+                    break
+            else:
+                x +=1
+
+        return ("Group histogram chart",
+                    charts.group_histogram_chart(group_names, group_values, tables,
+                        "Group histogram chart", "Duration [ms]", "Count"))
+
+    def preparation(self, list_sources, flag):
+        tables = []
+        tracelogs = []
+        nets = []
+        group_processes = []
+        group_transitions =  []
+        group_places = []
+
+        average_data, divergence_data = data_from_operation()
+
+        for source in list_sources:
+            tracelogs.append(source.data)
+
+        for tracelog in tracelogs:
+            tables.append(tracelog.data)
+            nets.append(tracelog.project.nets[0])
+            group_processes.append(range(tracelog.process_count))
+
+        for net in nets:
+            group_transitions.append([t for t in net.transitions() if t.trace_fire])
+            group_places.append([p for p in net.places() if p.trace_tokens])
+
+        if flag == "processes":
+            return tables, group_processes, group_transitions
+        if flag == "time":
+            return tables, group_processes, group_places
+        if flag == "tokens":
+            return tables, group_processes, group_places
+
+def data_from_operation(flag):
+    return None, None #tracelogprocessing.data(flag)
