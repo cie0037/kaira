@@ -39,7 +39,7 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg \
                                                as mpl_FigureCanvas
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-import numpy as np
+
 
 class LineConfig:
 
@@ -951,7 +951,7 @@ def _register_new_types_charts():
 
 _register_new_types_charts()
 
-def group_time_chart(list_sources, list_average = None, list_incident = None):        
+def group_time_chart(names, values, title="", xlabel="", ylabel=""):
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
@@ -966,32 +966,48 @@ def group_time_chart(list_sources, list_average = None, list_incident = None):
 
     return ChartWidget(figure)
 
-def group_amount_data_chart(list_sources, list_average = None, list_incident = None):
+def group_amount_data_chart(names, values, title="", xlabel="", ylabel=""):
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
 
-    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
-        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
-    ax.set_title("Pokus")
-    #ax.set_xlabel(xlabel)
-    #ax.set_ylabel(ylabel)
+    ax.boxplot(values)
+
+    ax.yaxis.grid(True)
+    ax.set_title(title)
+    ax.set_xticks([y+1 for y in range(len(values))], )
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     return ChartWidget(figure)
 
-def group_histogram_chart(list_sources, list_average = None, list_incident = None):
+def group_histogram_chart(names, values, table, title="", xlabel="", ylabel=""):
+    if not names or not values:
+        return _empty_chart(title, xlabel, ylabel)
+
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
 
-    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
-        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
-    ax.set_title("Pokus")
-    #ax.set_xlabel(xlabel)
-    #ax.set_ylabel(ylabel)
+    colors = [cm.hsv(float(i)/len(values)) for i in xrange(len(values))]
+    n, bins, patches = ax.hist(
+        values, 10, normed=0, histtype="bar", stacked = True,label=names, color=colors)
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-35)
+        label.set_horizontalalignment('left')
+
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
+
+    ax.xaxis.set_major_formatter(mpl_FuncFormatter(
+        lambda time, pos: utils.time_to_string(time)[:-7]))
+    ax.set_xlim(xmin=0)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     return ChartWidget(figure)
