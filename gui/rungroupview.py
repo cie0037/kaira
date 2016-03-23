@@ -39,9 +39,9 @@ class RunGroupView(gtk.VBox, EventSource):
         for source in self.group._sources:
             self.netinstance_view.set_runinstance(source.data.first_runinstance)
 
-        self.group_views.append(self.group_time_graph_prepare(self.group._sources))
-        self.group_views.append(self.group_amount_data_prepare(self.group._sources))
-        self.group_views.append(self.group_histogram_prepare(self.group._sources))
+        self.group_views.append(self.group_transitions_prepare(self.group._sources))
+        self.group_views.append(self.group_count_tokens_prepare(self.group._sources))
+        self.group_views.append(self.group_transitions_processes_prepare(self.group._sources))
 
         for name, item in self.group_views:
             self.pack_end(item)
@@ -207,9 +207,9 @@ class RunGroupView(gtk.VBox, EventSource):
         for source in self.group._sources:
             self.store.append([os.path.basename(source.name), [source]])
 
-        self.group_views[0] = (self.group_time_graph_prepare(self.group._sources))
-        self.group_views[1] = (self.group_amount_data_prepare(self.group._sources))
-        self.group_views[2] = (self.group_histogram_prepare(self.group._sources))
+        self.group_views[0] = (self.group_transitions_prepare(self.group._sources))
+        self.group_views[1] = (self.group_count_tokens_prepare(self.group._sources))
+        self.group_views[2] = (self.group_transitions_processes_prepare(self.group._sources))
 
         for name, item in self.group_views:
             self.pack_end(item)
@@ -222,9 +222,9 @@ class RunGroupView(gtk.VBox, EventSource):
         for source in self.group._sources:
             self.store.append([os.path.basename(source.name), [source]])
 
-        self.group_views[0] = (self.group_time_graph_prepare(self.group._sources))
-        self.group_views[1] = (self.group_amount_data_prepare(self.group._sources))
-        self.group_views[2] = (self.group_histogram_prepare(self.group._sources))
+        self.group_views[0] = (self.group_transitions_prepare(self.group._sources))
+        self.group_views[1] = (self.group_count_tokens_prepare(self.group._sources))
+        self.group_views[2] = (self.group_transitions_processes_prepare(self.group._sources))
 
         for name, item in self.group_views:
             self.pack_end(item)
@@ -258,13 +258,53 @@ class RunGroupView(gtk.VBox, EventSource):
     def get_tracelog(self):
         return self.tracelog 
 
-    def group_time_graph_prepare(self, list_sources):
-        required = ["Event", "Process", "Duration"]
-        tables, tracelogs_processes, items_places = self.preparation(list_sources, "time")
+    def group_transitions_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        required = ["Event", "Duration", "ID"]
 
-        return ("Group time chart", charts.group_time_chart("Group time chart", tables))
-    
-    def group_amount_data_prepare(self, list_sources):
+        tables, group_transitions  = self.preparation(list_sources, "transitions")
+
+        for table in tables:
+            header =table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        columns = ["Duration"]
+        filters = [("Event", f_eq, 'T')]
+
+        x = 0
+        y = 0
+        z = 0
+        while x < len(tables):
+            table = tables[x]
+            transitions = group_transitions[x]
+            while y < len(transitions):
+                t = transitions[y]
+                group_names.append(t.get_name_or_id())
+                tets = table.select(columns, filters + [("ID", f_eq, t.id)])
+                if len(tets) == 0:
+                    tets = [0]
+                group_values.append(tets)
+                break
+            if x == len(tables)-1:
+                x =0
+                y +=1
+                if y == len(transitions):
+                    break
+            else:
+                x +=1
+
+        average, divergence = data_from_operation("transitions")
+
+        lenght = len(tables)
+        return ("Group transitions time",
+                charts.group_boxplot_transitions_chart(
+                    group_names, group_values, lenght, average, divergence,
+                        "Group transitions time", "Transitions", "Time"))
+
+    def group_count_tokens_prepare(self, list_sources):
         group_names = []
         group_values = []
         result = []
@@ -281,12 +321,11 @@ class RunGroupView(gtk.VBox, EventSource):
 
         f_eq = lambda x, y: x == y
         filters = [("Event", f_eq, 'C')]
-        i = 1
+
         x = 0
         y = 0
         z = 0
         while x < len(tables):
-            i +=1
             table = tables[x]
             processes = group_processes[x]
             places = group_places[x]
@@ -311,11 +350,15 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 x +=1
 
-        return ("Number of tokens in places",
-                    charts.group_amount_data_chart(group_names, group_values,
-                        "Number of tokens in places", "Places", "Count"))
+        average, divergence = data_from_operation("tokens")
 
-    def group_histogram_prepare(self, list_sources):
+        lenght = len(tables)
+        return ("Number of tokens in places",
+                    charts.group_boxplot_data_chart(
+                        group_names, group_values, lenght, average, divergence,
+                            "Number of tokens in places", "Places", "Count"))
+
+    def group_transitions_processes_prepare(self, list_sources):
         group_names = []
         group_values = []
         required = ["Event", "Process", "Duration", "ID"]
@@ -360,9 +403,13 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 x +=1
 
-        return ("Group histogram chart",
-                    charts.group_histogram_chart(group_names, group_values, tables,
-                        "Group histogram chart", "Duration [ms]", "Count"))
+        average, divergence = data_from_operation("processes")
+
+        lenght = len(tables)
+        return ("Group processes and transitions",
+                    charts.group_histogram_chart(
+                        group_names, group_values, lenght, average, divergence,
+                            "Group processes and transitions", "Duration", "Count"))
 
     def preparation(self, list_sources, flag):
         tables = []
@@ -372,7 +419,7 @@ class RunGroupView(gtk.VBox, EventSource):
         group_transitions =  []
         group_places = []
 
-        average_data, divergence_data = data_from_operation()
+        average_data, divergence_data = data_from_operation(flag)
 
         for source in list_sources:
             tracelogs.append(source.data)
@@ -388,8 +435,8 @@ class RunGroupView(gtk.VBox, EventSource):
 
         if flag == "processes":
             return tables, group_processes, group_transitions
-        if flag == "time":
-            return tables, group_processes, group_places
+        if flag == "transitions":
+            return tables, group_transitions
         if flag == "tokens":
             return tables, group_processes, group_places
 
