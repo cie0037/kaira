@@ -951,39 +951,44 @@ def _register_new_types_charts():
 
 _register_new_types_charts()
 
-def group_time_chart(names, values, title="", xlabel="", ylabel=""):
+def group_boxplot_transitions_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
 
-    ax.text(0.5, 0.5, 'No measured data.', color='#aa0000', fontsize=36,
-        ha='center', va='center', alpha=1.0, transform=ax.transAxes)
-    ax.set_title("Pokus")
-    #ax.set_xlabel(xlabel)
-    #ax.set_ylabel(ylabel)
+    ax.boxplot(values, notch=1, vert =True, patch_artist=True)
 
-    return ChartWidget(figure)
-
-def group_amount_data_chart(names, values, title="", xlabel="", ylabel=""):
-    figure = mpl_Figure()
-    canvas = mpl_FigureCanvas(figure)
-    figure.set_canvas(canvas)
-
-    ax = figure.add_subplot(111, projection=BasicChart.name)
-
-    ax.boxplot(values)
-
-    ax.yaxis.grid(True)
     ax.set_title(title)
-    ax.set_xticks([y+1 for y in range(len(values))], )
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
     return ChartWidget(figure)
 
-def group_histogram_chart(names, values, table, title="", xlabel="", ylabel=""):
+def group_boxplot_data_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    figure = mpl_Figure()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+
+    colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
+
+    bplot = ax.boxplot(values, notch=1, patch_artist=True)
+
+    for patch, color in zip(bplot['boxes'],colors):
+        patch.set_facecolor(color)
+
+    ax.yaxis.grid(True)
+    ax.set_title(title)
+    ax.set_xticks([y+1 for y in range(len(values))])
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+
+def group_histogram_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
     if not names or not values:
         return _empty_chart(title, xlabel, ylabel)
 
@@ -993,9 +998,10 @@ def group_histogram_chart(names, values, table, title="", xlabel="", ylabel=""):
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
 
-    colors = [cm.hsv(float(i)/len(values)) for i in xrange(len(values))]
+    colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
+
     n, bins, patches = ax.hist(
-        values, 10, normed=0, histtype="bar", stacked = True,label=names, color=colors)
+        values, 10, normed=0, histtype="bar", stacked =True, alpha =0.8, label=names, color=colors)
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
