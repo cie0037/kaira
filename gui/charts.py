@@ -39,6 +39,7 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg \
                                                as mpl_FigureCanvas
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
 
 
 class LineConfig:
@@ -957,8 +958,23 @@ def group_boxplot_transitions_chart(names, values, lenght, average, divergence, 
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
+    colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
+    bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
 
-    ax.boxplot(values, notch=1, vert =True, patch_artist=True)
+    if len(average) > 0:
+        ax.plot(average,lw= 5, label ="average", color = "#00f000")
+    if len(divergence) > 0:
+        if sum(divergence[0])> 0:
+            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
+
+    for patch, color, name in zip(bplot['boxes'],colors, names):
+        patch.set_facecolor(color)
+
+    ax.set_xticklabels([name for name in names])
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-35)
+        label.set_horizontalalignment('left')
 
     ax.set_title(title)
     ax.set_xlabel(xlabel)
@@ -972,17 +988,26 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
-
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
-
     bplot = ax.boxplot(values, notch=1, patch_artist=True)
+
+    if len(average) > 0:
+        ax.plot(average,lw= 5, label ="average", color = "#00f000")
+    if len(divergence) > 0:
+        if sum(divergence[0])> 0:
+            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
 
     for patch, color in zip(bplot['boxes'],colors):
         patch.set_facecolor(color)
 
     ax.yaxis.grid(True)
     ax.set_title(title)
-    ax.set_xticks([y+1 for y in range(len(values))])
+    ax.set_xticklabels([name for name in names])
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-35)
+        label.set_horizontalalignment('left')
+
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
@@ -997,11 +1022,16 @@ def group_histogram_chart(names, values, lenght, average, divergence, title="", 
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
-
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
 
-    n, bins, patches = ax.hist(
-        values, 10, normed=0, histtype="bar", stacked =True, alpha =0.8, label=names, color=colors)
+    ax.hist(values, 5, normed=0, histtype="bar",
+                stacked =False, alpha =0.8, label=names, color=colors)
+
+    if len(average) > 0:
+        ax.plot(average[0],lw= 5, label ="average", color = "#00ff00")
+    if len(divergence) > 0:
+        if(sum(divergence[0]))> 0:
+            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
