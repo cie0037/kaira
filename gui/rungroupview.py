@@ -303,7 +303,7 @@ class RunGroupView(gtk.VBox, EventSource):
         return ("Group transitions time",
                 charts.group_boxplot_transitions_chart(
                     group_names, group_values, lenght, average, divergence,
-                        "Group transitions time", "Transitions", "Time"))
+                        "Group transitions time", "Transitions", "Count"))
 
     def group_count_tokens_prepare(self, list_sources):
         group_names = []
