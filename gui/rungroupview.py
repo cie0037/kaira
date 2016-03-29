@@ -8,7 +8,8 @@ import charts
 import utils
 import netview
 import runview
-#import extensions.tracelogprocessing
+import table
+import extensions
 from exportri import place_counter_name
 from events import EventSource, EventCallbacksList
 
@@ -441,4 +442,4 @@ class RunGroupView(gtk.VBox, EventSource):
             return tables, group_processes, group_places
 
 def data_from_operation(flag):
-    return None, None #tracelogprocessing.data(flag)
+    return extensions.data(flag)
