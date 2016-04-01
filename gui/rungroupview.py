@@ -151,50 +151,51 @@ class RunGroupView(gtk.VBox, EventSource):
         if index != None:
             model = w.get_model()
             list = model[index][1]
-            source = list[0]
-            if len(source.name) > 10:
-                self.tracelog = source.data
-                table = self.tracelog.data
+            if len(list._sources) != 0:
+                source = list[0]
+                if len(source.name) > 10:
+                    self.tracelog = source.data
+                    table = self.tracelog.data
 
-                net = self.tracelog.project.nets[0]
-                processes = range(self.tracelog.process_count)
-                transitions = [ t for t in net.transitions() if t.trace_fire ]
-                places = [ p for p in net.places() if p.trace_tokens ]
+                    net = self.tracelog.project.nets[0]
+                    processes = range(self.tracelog.process_count)
+                    transitions = [ t for t in net.transitions() if t.trace_fire ]
+                    places = [ p for p in net.places() if p.trace_tokens ]
 
-                if len(self.views) == 0:
-                    views = [ ("Replay", self.netinstance_view) ]
-                    views.append(runview.process_utilization(table, processes))
-                    views.append(runview.transition_utilization(table, processes, transitions))
-                    views.append(runview.tet_per_processes_and_transitions_histogram(
-                        table, processes, transitions))
-                    views.append(runview.tet_per_processes_histogram(table, processes))
-                    views.append(runview.tet_per_transitions_histogram(table, transitions))
-                    views.append(runview.tokens_count(table, processes, places))
-                    self.views = views    
-                    for name, item in views:
-                        self.pack_start(item)
+                    if len(self.views) == 0:
+                        views = [ ("Replay", self.netinstance_view) ]
+                        views.append(runview.process_utilization(table, processes))
+                        views.append(runview.transition_utilization(table, processes, transitions))
+                        views.append(runview.tet_per_processes_and_transitions_histogram(
+                            table, processes, transitions))
+                        views.append(runview.tet_per_processes_histogram(table, processes))
+                        views.append(runview.tet_per_transitions_histogram(table, transitions))
+                        views.append(runview.tokens_count(table, processes, places))
+                        self.views = views
+                        for name, item in views:
+                            self.pack_start(item)
 
+                    for x in xrange(len(self.views)):
+                        self.combo2.remove_text(0)
+                    for name, item in self.views:
+                        self.combo2.append_text(name)
+                        self.combo2.set_active(0)
+
+            if text == self.group.name:
+                self.scale.set_value(max(0,self.get_event_index()-self.get_event_index()))
+                self.tracelog = None
+                self.button1.hide()
+                self.button2.hide()
+                self.scale.hide()
+                self.counter_label.set_text("")
+                self.info_label.set_markup("")
                 for x in xrange(len(self.views)):
-                    self.combo2.remove_text(0)
-                for name, item in self.views:
-                    self.combo2.append_text(name)
-                    self.combo2.set_active(0)        
+                        self.combo2.remove_text(0)
 
-        if text == self.group.name:
-            self.scale.set_value(max(0,self.get_event_index()-self.get_event_index()))
-            self.tracelog = None
-            self.button1.hide()
-            self.button2.hide()
-            self.scale.hide()
-            self.counter_label.set_text("")
-            self.info_label.set_markup("")
-            for x in xrange(len(self.views)):
-                    self.combo2.remove_text(0)
-
-            self.combo2.append_text("Select chart")
-            for name, item in self.group_views:
-                    self.combo2.append_text(name)
-                    self.combo2.set_active(0)
+                self.combo2.append_text("Select chart")
+                for name, item in self.group_views:
+                        self.combo2.append_text(name)
+                        self.combo2.set_active(0)
 
     def add_source(self):
         self.emit_event("add-source")
@@ -202,7 +203,7 @@ class RunGroupView(gtk.VBox, EventSource):
     def detach_source(self):
         self.emit_event("detach-source")
 
-    def _add_source(self):
+    def _add_source(self, source):
         self.store.clear()
         self.store.append([self.group.name, self.group])
         for source in self.group._sources:
