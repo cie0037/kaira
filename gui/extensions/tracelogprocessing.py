@@ -9,7 +9,7 @@ class TracelogProcessing(extensions.Operation):
     description = "Processing group tracelog into graph"
 
     parameters = [
-        extensions.Parameter("Tracelogs",
+        extensions.Parameter("Group",
                              datatypes.t_tracelog,
                              type=extensions.Parameter.TYPE_GROUP)]
 
@@ -40,6 +40,7 @@ class TracelogProcessing(extensions.Operation):
             del c_divergence[:]
 
         for tracelog in list_tracelogs:
+            print(tracelog.filename)
             tables.append(tracelog.data)
             nets.append(tracelog.project.nets[0])
             group_processes.append(range(tracelog.process_count))
