@@ -962,10 +962,19 @@ def group_boxplot_transitions_chart(names, values, lenght, average, divergence, 
     bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
 
     if len(average) > 0:
-        ax.plot(average,lw= 5, label ="average", color = "#00f000")
+        t,p = [],[]
+        for i, j in zip([b for b in xrange(len(values))], [a for a in average[0]]):
+            t.append(i)
+            p.append(j)
+        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
+
     if len(divergence) > 0:
-        if sum(divergence[0])> 0:
-            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
+        if(sum(divergence[0]))> 0:
+            t,p = [],[]
+        for i, j in zip([b for b in xrange(len(values))], [a for a in divergence[0]]):
+            t.append(i)
+            p.append(j)
+            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
     for patch, color, name in zip(bplot['boxes'],colors, names):
         patch.set_facecolor(color)
@@ -992,17 +1001,27 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
     bplot = ax.boxplot(values, notch=1, patch_artist=True)
 
     if len(average) > 0:
-        ax.plot(average,lw= 5, label ="average", color = "#00f000")
-    if len(divergence) > 0:
-        if sum(divergence[0])> 0:
-            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
+        t,p = [],[]
+        for i, j in zip([b for b in xrange(len(values))], [a for a in average[0]]):
+            t.append(i)
+            p.append(j)
+        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
 
-    for patch, color in zip(bplot['boxes'],colors):
+    if len(divergence) > 0:
+        if(sum(divergence[0]))> 0:
+            t,p = [],[]
+        for i, j in zip([b for b in xrange(len(values))], [a for a in divergence[0]]):
+            t.append(i)
+            p.append(j)
+            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
+
+    for patch, color, name in zip(bplot['boxes'], colors, names):
         patch.set_facecolor(color)
+        patch.set_label(name)
 
     ax.yaxis.grid(True)
     ax.set_title(title)
-    ax.set_xticklabels([name for name in names])
+    ax.set_xticklabels([y+1 for y in xrange(len(names))])
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
@@ -1010,13 +1029,13 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-
+    
     return ChartWidget(figure)
 
 def group_histogram_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
     if not names or not values:
         return _empty_chart(title, xlabel, ylabel)
-
+    
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
@@ -1024,14 +1043,23 @@ def group_histogram_chart(names, values, lenght, average, divergence, title="", 
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
 
-    ax.hist(values, 5, normed=0, histtype="bar",
-                stacked =False, alpha =0.8, label=names, color=colors)
+    n, bins, patches = ax.hist(values, normed=0, histtype="bar",
+            stacked =True, label=names, color=colors)
 
     if len(average) > 0:
-        ax.plot(average[0],lw= 5, label ="average", color = "#00ff00")
+        t,p = [],[]
+        for i, j in zip(bins, [a for a in average[0]]):
+            t.append(i)
+            p.append(j)
+        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
+
     if len(divergence) > 0:
         if(sum(divergence[0]))> 0:
-            ax.plot(divergence[0], lw = 5, label = "divergence", color = "#000000")
+            t,p = [],[]
+        for i, j in zip(bins, [a for a in divergence[0]]):
+            t.append(i)
+            p.append(j)
+            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
@@ -1039,8 +1067,7 @@ def group_histogram_chart(names, values, lenght, average, divergence, title="", 
 
     ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
 
-    ax.xaxis.set_major_formatter(mpl_FuncFormatter(
-        lambda time, pos: utils.time_to_string(time)[:-7]))
+    ax.set_xticklabels([y+1 for y in xrange(len(bins))])
     ax.set_xlim(xmin=0)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
