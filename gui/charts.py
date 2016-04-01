@@ -953,10 +953,13 @@ def _register_new_types_charts():
 _register_new_types_charts()
 
 def group_boxplot_transitions_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    if not names or not values or lenght == 0:
+        return _empty_chart(title, xlabel, ylabel)
+    
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
-
+    
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
     bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
@@ -992,10 +995,14 @@ def group_boxplot_transitions_chart(names, values, lenght, average, divergence, 
     return ChartWidget(figure)
 
 def group_boxplot_data_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    if not names or not values or lenght == 0:
+        return _empty_chart(title, xlabel, ylabel)
+    
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
-
+    
+    
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
     bplot = ax.boxplot(values, notch=1, patch_artist=True)
@@ -1029,22 +1036,22 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    
+        
     return ChartWidget(figure)
 
 def group_histogram_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
-    if not names or not values:
+    if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
-    
+        
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
+        
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
-
     n, bins, patches = ax.hist(values, normed=0, histtype="bar",
-            stacked =True, label=names, color=colors)
+                stacked =True, label=names, color=colors)
 
     if len(average) > 0:
         t,p = [],[]
