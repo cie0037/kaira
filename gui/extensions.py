@@ -1200,23 +1200,28 @@ class OperationManager(gtk.VBox):
 
     def _cb_attach_source(self, source):
         operation = self.full_view.operation
-        if operation is not None:
-            operation.attach_source(source)
+        if operation.name != "Tracelog processing":
+            if operation is not None:
+                operation.attach_source(source)
 
-            param, idx = operation.selected_argument
-            if param is None:
-                return
+                param, idx = operation.selected_argument
+                if param is None:
+                    return
 
-            if param.is_list(): # the filter will stay on,
-                                # if a argument is list type
-                operation.select_argument(param, param.sources_count() + 1)
+                if param.is_list(): # the filter will stay on,
+                                    # if a argument is list type
+                    operation.select_argument(param, param.sources_count() + 1)
+                else:
+                    operation.select_argument(None, None)
+                    self.sources_view.set_filter(None)
+
             else:
-                operation.select_argument(None, None)
-                self.sources_view.set_filter(None)
-
+                self.app.show_message_dialog(
+                    "No operation is chosen.", gtk.MESSAGE_INFO)
         else:
             self.app.show_message_dialog(
-                "No operation is chosen.", gtk.MESSAGE_INFO)
+                    "This operation not attached from source.", gtk.MESSAGE_INFO)
+
 
     def _cb_attach_group(self, group):
         operation = self.full_view.operation
