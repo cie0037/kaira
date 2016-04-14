@@ -40,6 +40,7 @@ from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg \
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
+import pylab
 
 
 class LineConfig:
@@ -952,14 +953,14 @@ def _register_new_types_charts():
 
 _register_new_types_charts()
 
-def group_boxplot_transitions_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def group_boxplot_transitions_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
-    
+
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
-    
+
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
     bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
@@ -979,8 +980,13 @@ def group_boxplot_transitions_chart(names, values, lenght, average, divergence, 
             p.append(j)
             ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
-    for patch, color, name in zip(bplot['boxes'],colors, names):
+    for patch, color in zip(bplot['boxes'],colors):
         patch.set_facecolor(color)
+
+    for v, n, c in zip(values, nam, colors):
+        ax.hist(v, label=n, color=c)
+
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
 
     ax.set_xticklabels([name for name in names])
 
@@ -994,7 +1000,7 @@ def group_boxplot_transitions_chart(names, values, lenght, average, divergence, 
 
     return ChartWidget(figure)
 
-def group_boxplot_data_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def boxplot_transitions_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
     
@@ -1002,10 +1008,46 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
     
-    
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
-    bplot = ax.boxplot(values, notch=1, patch_artist=True)
+    bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
+
+    for patch, color in zip(bplot['boxes'],colors):
+        patch.set_facecolor(color)
+
+    for v, n, c in zip(values, nam, colors):
+        ax.hist(v, label=n, color=c)
+        
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
+    
+    ax.set_xticklabels([name for name in names])
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-35)
+        label.set_horizontalalignment('left')
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+
+def group_boxplot_data_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    if not names or not values or lenght == 0:
+        return _empty_chart(title, xlabel, ylabel)
+
+    figure, a = plt.subplots()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+    colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
+
+    value = []
+    for i , (x , y) in enumerate(values):
+        value.append(y)
+
+    bplot = ax.boxplot(value, notch=1, patch_artist=True)
 
     if len(average) > 0:
         t,p = [],[]
@@ -1022,51 +1064,109 @@ def group_boxplot_data_chart(names, values, lenght, average, divergence, title="
             p.append(j)
             ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
-    for patch, color, name in zip(bplot['boxes'], colors, names):
-        patch.set_facecolor(color)
-        patch.set_label(name)
+    for patch, col in zip(bplot['boxes'], colors):
+        patch.set_facecolor(col)
+
+    for v, n, c in zip(value, nam, colors):
+        ax.hist(v*0, label=n, color=c)
+
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
 
     ax.yaxis.grid(True)
     ax.set_title(title)
-    ax.set_xticklabels([y+1 for y in xrange(len(names))])
+    ax.set_xticklabels([y for y in names])
 
     for label in ax.xaxis.get_ticklabels():
-        label.set_rotation(-35)
+        label.set_rotation(-45)
         label.set_horizontalalignment('left')
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-        
+
     return ChartWidget(figure)
 
-def group_histogram_chart(names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def boxplot_data_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
-        
+
+    figure, a = plt.subplots()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+    colors = [cm.hsv(float(i)/1) for i in xrange(lenght)]*(len(values)/1)
+
+    value = []
+    for i, (x , y) in enumerate(values):
+        value.append(y)
+
+    j = 0
+    k = 0
+    v = []
+    val = []
+    while j < len(value):
+        while k < lenght:
+            v.extend(value[j])
+            j +=1
+            k +=1
+        val.append(v[:])
+        del v[:]
+        k = 0
+
+    bplot = ax.boxplot(val, notch=1, patch_artist=True)
+
+    for patch, col in zip(bplot['boxes'], colors):
+        patch.set_facecolor(col)
+
+    for v, n, c in zip(val, nam, colors):
+        ax.hist([0], label=n, color=c)
+
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
+
+    name =[]
+    for i in xrange(len(names)):
+        if i % 2 == 0:
+            name.append(names[i])
+
+    ax.yaxis.grid(True)
+    ax.set_title(title)
+    ax.set_xticklabels([y for y in name])
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-45)
+        label.set_horizontalalignment('left')
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+
+def group_histogram_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    if not names or not values or lenght == 0:
+        return _empty_chart(title, xlabel, ylabel)
+
     figure = mpl_Figure()
     canvas = mpl_FigureCanvas(figure)
     figure.set_canvas(canvas)
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
-        
+
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
+
+    value = []
+    v = []
+    x = 0
+    while x < len(values):
+        y = 0
+        while y < lenght:
+            v.append(values[x+y])
+            y +=1
+        value.append(v[:])
+        del v[:]
+        x +=y
+
     n, bins, patches = ax.hist(values, normed=0, histtype="bar",
-                stacked =True, label=names, color=colors)
-
-    if len(average) > 0:
-        t,p = [],[]
-        for i, j in zip(bins, [a for a in average[0]]):
-            t.append(i)
-            p.append(j)
-        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
-
-    if len(divergence) > 0:
-        if(sum(divergence[0]))> 0:
-            t,p = [],[]
-        for i, j in zip(bins, [a for a in divergence[0]]):
-            t.append(i)
-            p.append(j)
-            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
+            label=nam, color=colors)
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
@@ -1074,7 +1174,55 @@ def group_histogram_chart(names, values, lenght, average, divergence, title="", 
 
     ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
 
-    ax.set_xticklabels([y+1 for y in xrange(len(bins))])
+    ax.xaxis.set_major_formatter(mpl_FuncFormatter(
+        lambda time, pos: utils.time_to_string(time)[:-7]))
+    ax.set_xlim(xmin=0)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return ChartWidget(figure)
+
+def histogram_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+    if not names or not values or lenght == 0:
+        return _empty_chart(title, xlabel, ylabel)
+
+    figure = mpl_Figure()
+    canvas = mpl_FigureCanvas(figure)
+    figure.set_canvas(canvas)
+
+    ax = figure.add_subplot(111, projection=BasicChart.name)
+
+    colors = []#[cm.hsv(float(i)/1) for i in xrange(lenght)]*(len(values)/1)
+
+    value = []
+    v = []
+    x = 0
+    y = 0
+    while x < len(values):
+        while y < lenght:
+            v.append(values[x])
+            y +=1
+            x +=1
+        value.append(v[:])
+        del v[:]
+        y = 0
+
+    color = (0.0, 1.0, 0.0, 0.8)
+    colors.append(color)
+    colors = colors * len(value)
+    print(colors)
+    n, bins, patches = ax.hist(value, normed=0, histtype="bar",
+            label=nam, color=colors)
+
+    for label in ax.xaxis.get_ticklabels():
+        label.set_rotation(-35)
+        label.set_horizontalalignment('left')
+
+    ax.plegend = ax.legend(loc="upper right", fancybox=True, shadow=True)
+
+    ax.xaxis.set_major_formatter(mpl_FuncFormatter(
+        lambda time, pos: utils.time_to_string(time)[:-7]))
     ax.set_xlim(xmin=0)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
