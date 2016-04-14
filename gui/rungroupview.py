@@ -22,6 +22,7 @@ class RunGroupView(gtk.VBox, EventSource):
 
         self.group = group
         self.group_views =[]
+        self.merge_views = []
         self.views = []
         self.source = None
         self.tracelog = None
@@ -44,7 +45,14 @@ class RunGroupView(gtk.VBox, EventSource):
         self.group_views.append(self.group_count_tokens_prepare(self.group._sources))
         self.group_views.append(self.group_transitions_processes_prepare(self.group._sources))
 
+        self.merge_views.append(self.transitions_prepare(self.group._sources))
+        self.merge_views.append(self.count_tokens_prepare(self.group._sources))
+        self.merge_views.append(self.transitions_processes_prepare(self.group._sources))
+
         for name, item in self.group_views:
+            self.pack_end(item)
+
+        for name, item in self.merge_views:
             self.pack_end(item)
 
         self.pack_start(self._controls(self.group), False, False)
@@ -75,6 +83,14 @@ class RunGroupView(gtk.VBox, EventSource):
         self.combo2.set_active(0)
         self.combo2.connect("changed", self._view_change)
         toolbar.pack_start(self.combo2, False, False)
+
+        self.combo3 = gtk.combo_box_new_text()
+        self.combo3.append_text("Select chart merge tracelogs")
+        for name, item in self.merge_views:
+            self.combo3.append_text(name)
+        self.combo3.set_active(0)
+        self.combo3.connect("changed", self._views_change)
+        toolbar.pack_start(self.combo3, False, False)
 
         self.button1 = gtk.Button("<<")
         self.button1.connect("clicked", lambda w: self.scale.set_value(max(0, self.get_event_index() - 1)))
@@ -136,6 +152,17 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 item.hide()
         for name, item in self.group_views:
+            if name == text:
+                item.show_all()
+                if isinstance(item, charts.ChartWidget):
+                    # set focus on graph canvas
+                    item.get_figure().canvas.grab_focus()
+            else:
+                item.hide()
+
+    def _views_change(self, w):
+        text = w.get_active_text()
+        for name, item in self.merge_views:
             if name == text:
                 item.show_all()
                 if isinstance(item, charts.ChartWidget):
@@ -264,7 +291,7 @@ class RunGroupView(gtk.VBox, EventSource):
         group_values = []
         required = ["Event", "Duration", "ID"]
 
-        tables, group_transitions  = self.preparation(list_sources, "transitions")
+        names, tables, group_transitions  = self.preparation(list_sources, "transitions")
 
         for table in tables:
             header =table.header
@@ -300,16 +327,16 @@ class RunGroupView(gtk.VBox, EventSource):
         average, divergence = data_from_operation("transitions")
 
         lenght = len(tables)
-        return ("Group transitions time",
+        return ("Transitions time",
                 charts.group_boxplot_transitions_chart(
-                    group_names, group_values, lenght, average, divergence,
-                        "Group transitions time", "Transitions", "Count"))
+                    names, group_names, group_values, lenght, average, divergence,
+                        "Transitions time", "Transitions", "Time[ms]"))
 
     def group_count_tokens_prepare(self, list_sources):
         group_names = []
         group_values = []
         result = []
-        tables, group_processes, group_places = self.preparation(list_sources, "tokens")
+        names, tables, group_processes, group_places = self.preparation(list_sources, "tokens")
         for places in group_places:
             result = result +[place_counter_name(place) for place in places]
 
@@ -356,14 +383,14 @@ class RunGroupView(gtk.VBox, EventSource):
         lenght = len(tables)
         return ("Number of tokens in places",
                     charts.group_boxplot_data_chart(
-                        group_names, group_values, lenght, average, divergence,
+                        names, group_names, group_values, lenght, average, divergence,
                             "Number of tokens in places", "Places", "Count"))
 
     def group_transitions_processes_prepare(self, list_sources):
         group_names = []
         group_values = []
         required = ["Event", "Process", "Duration", "ID"]
-        tables, group_processes, group_transitions  = self.preparation(list_sources, "processes")
+        names, tables, group_processes, group_transitions  = self.preparation(list_sources, "processes")
 
         for table in tables:
             header = table.header
@@ -407,13 +434,226 @@ class RunGroupView(gtk.VBox, EventSource):
         average, divergence = data_from_operation("processes")
 
         lenght = len(tables)
-        return ("Group processes and transitions",
+        return ("Processes and transitions",
                     charts.group_histogram_chart(
-                        group_names, group_values, lenght, average, divergence,
-                            "Group processes and transitions", "Duration", "Count"))
+                        names, group_names, group_values, lenght, average, divergence,
+                            "Processes and transitions", "Duration [ms]", "Count"))
+
+    def transitions_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        required = ["Event", "Duration", "ID"]
+
+        names, tables, group_transitions  = self.preparation(list_sources, "transitions")
+
+        for table in tables:
+            header =table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        columns = ["Duration"]
+        filters = [("Event", f_eq, 'T')]
+
+        x = 0
+        y = 0
+        z = 0
+        pom =[]
+        nam = []
+        while x < len(tables):
+            table = tables[x]
+            transitions = group_transitions[x]
+            while y < len(transitions):
+                t = transitions[y]
+                nam = t.get_name_or_id()
+                tets = table.select(columns, filters + [("ID", f_eq, t.id)])
+                if len(tets) == 0:
+                    tets = [0]
+                pom.extend(tets)
+                break
+            if x == len(tables)-1:
+                x =0
+                y +=1
+                group_names.append(nam)
+                group_values.append(pom[:])
+                del pom[:]
+                if y == len(transitions):
+                    break
+            else:
+                x +=1
+        
+        names = ["Merge tracelogs"]
+        lenght = 1
+        return ("Transitions time",
+                charts.boxplot_transitions_chart(
+                    names, group_names, group_values, lenght,
+                        "Transitions time", "Transitions", "Time[ms]"))
+
+ 
+        group_names = []
+        group_values = []
+        result = []
+        names, tables, group_processes, group_places = self.preparation(list_sources, "tokens")
+        for places in group_places:
+            result = result +[place_counter_name(place) for place in places]
+
+        required = ["Event", "Process", "Time"] + result
+
+        for table in tables:
+            header =table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        filters = [("Event", f_eq, 'C')]
+
+        x = 0
+        y = 0
+        z = 0
+        nam = []
+        pom = []
+        while x < len(tables):
+            table = tables[x]
+            processes = group_processes[x]
+            places = group_places[x]
+            while y < len(places):
+                place = places[y]
+                columns = ["Time", place_counter_name(place)]
+                while z < len(processes):
+                    p = processes[z]
+                    group_names.append("{0}@{1}".format(place.get_name_or_id(), p))
+                    counts = table.select(columns, filters + [("Process", f_eq, p)])
+                    group_values.append((counts[columns[0]], counts[columns[1]]))
+                    break
+                break
+            if x == len(tables)-1:
+                x =0
+                z +=1
+                if z == len(processes):
+                    y +=1
+                    z =0
+                if y == len(places):
+                    break
+            else:
+                x +=1
+
+        names = ["Merge tracelogs"]
+        lenght = 1
+        return ("Number of tokens in places",
+                    charts.boxplot_data_chart(
+                        names, group_names, group_values, lenght,
+                            "Number of tokens in places", "Places", "Count"))
+
+    def count_tokens_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        result = []
+        names, tables, group_processes, group_places = self.preparation(list_sources, "tokens")
+        for places in group_places:
+            result = result +[place_counter_name(place) for place in places]
+
+        required = ["Event", "Process", "Time"] + result
+
+        for table in tables:
+            header =table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        filters = [("Event", f_eq, 'C')]
+
+        x = 0
+        y = 0
+        z = 0
+        nam =[]
+        val = []
+        while x < len(tables):
+            table = tables[x]
+            processes = group_processes[x]
+            places = group_places[x]
+            while y < len(places):
+                place = places[y]
+                columns = ["Time", place_counter_name(place)]
+                while z < len(processes):
+                    p = processes[z]
+                    group_names.append("{0}@{1}".format(place.get_name_or_id(), p))
+                    counts = table.select(columns, filters + [("Process", f_eq, p)])
+                    group_values.append((counts[columns[0]], counts[columns[1]]))
+                    break
+                break
+            if x == len(tables)-1:
+                x =0
+                z +=1
+                if z == len(processes):
+                    y +=1
+                    z =0
+                if y == len(places):
+                    break
+            else:
+                x +=1
+
+        names = ["Merge tracelogs"]
+        lenght = len(tables)
+        return ("Number of tokens in places",
+                    charts.boxplot_data_chart(
+                        names, group_names, group_values, lenght,
+                            "Number of tokens in places", "Places", "Count"))
+
+    def transitions_processes_prepare(self, list_sources):
+        group_names = []
+        group_values = []
+        required = ["Event", "Process", "Duration", "ID"]
+        names, tables, group_processes, group_transitions  = self.preparation(list_sources, "processes")
+
+        for table in tables:
+            header = table.header
+            if not all(item in header for item in required):
+                tables.remove(table)
+
+        f_eq = lambda x, y: x == y
+        columns = ["Duration"]
+        filters = [("Event", f_eq, 'T')]
+
+        x = 0
+        y = 0
+        z = 0
+        while x < len(tables):
+            table = tables[x]
+            transitions = group_transitions[x]
+            processes = group_processes[x]
+            while y < len(transitions):
+                t = transitions[y]
+                f = filters + [("ID", f_eq, t.id)]
+                while z < len(processes):
+                    p = processes[z]
+                    group_names.append("{0}`{1}".format(t.get_name_or_id(), p))
+                    tets = table.select(columns, f + [("Process", f_eq, p)])
+                    if len(tets) == 0:
+                        tets = [0]
+                    group_values.append(tets)
+                    break
+                break
+            if x == len(tables)-1:
+                x =0
+                z +=1
+                if z == len(processes):
+                    y +=1
+                    z =0
+                if y == len(transitions):
+                    break
+            else:
+                x +=1
+
+        names = ["Merge tracelogs"]
+        lenght = len(tables)
+        return ("Processes and transitions",
+                    charts.histogram_chart(
+                        names, group_names, group_values, lenght,
+                            "Processes and transitions", "Duration [ms]", "Count"))
 
     def preparation(self, list_sources, flag):
         tables = []
+        names = []
         tracelogs = []
         nets = []
         group_processes = []
@@ -424,6 +664,7 @@ class RunGroupView(gtk.VBox, EventSource):
 
         for source in list_sources:
             tracelogs.append(source.data)
+            names.append(os.path.basename(source.name))
 
         for tracelog in tracelogs:
             tables.append(tracelog.data)
@@ -435,11 +676,11 @@ class RunGroupView(gtk.VBox, EventSource):
             group_places.append([p for p in net.places() if p.trace_tokens])
 
         if flag == "processes":
-            return tables, group_processes, group_transitions
+            return names, tables, group_processes, group_transitions
         if flag == "transitions":
-            return tables, group_transitions
+            return names, tables, group_transitions
         if flag == "tokens":
-            return tables, group_processes, group_places
+            return names, tables, group_processes, group_places
 
 def data_from_operation(flag):
     return extensions.data(flag)
