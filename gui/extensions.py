@@ -1168,7 +1168,6 @@ class OperationManager(gtk.VBox):
         selected_sources = []
         for source in self.app.sources_repository.get_sources(
                 lambda s : s.picked):
-            print(source)
             if isinstance(source, Source):
                 selected_sources.append(source)
                 self.app.sources_repository.remove(source)
@@ -1488,9 +1487,10 @@ class GroupView(gtk.Alignment, EventSource):
                 lambda s : s.picked):
             self.group.add(source)
             self.app.sources_repository.remove(source)
-        if self.tabview is not None:
-            for name, item in self.view.group_views:
-                self.view.remove(item)
+
+            if self.tabview is not None:
+                for name, item in self.view.group_views:
+                    self.view.remove(item)
                 self.view.emit_event("add-source", source)
 
     def _detach_from_group(self):
@@ -1527,14 +1527,13 @@ class GroupView(gtk.Alignment, EventSource):
                 self.group.remove(source)
                 self.app.sources_repository.add(source)
                 self.combo1.set_active(0)
-                if self.tabview is not None:
-                    for name, item in self.view.group_views:
-                        if item in self.view.get_children():
-                            self.view.remove(item)
-                            self.view.detach_source()
-                    self.tabview.close()
-                if len(self.group._sources) == 0:
-                    self.emit_event("delete-group", self.group)
+            if self.tabview is not None:
+                for name, item in self.view.group_views:
+                    self.view.remove(item)
+                self.view.detach_source()
+            if len(self.group._sources) == 0:
+                self.tabview.close()
+                self.emit_event("delete-group", self.group)
 
     def _cb_unpack_group(self, group):
         for source in group:

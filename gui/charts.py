@@ -1211,9 +1211,8 @@ def histogram_chart(nam, names, values, lenght, average, divergence, title="", x
     color = (0.0, 1.0, 0.0, 0.8)
     colors.append(color)
     colors = colors * len(value)
-    print(colors)
-    n, bins, patches = ax.hist(value, normed=0, histtype="bar",
-            label=nam, color=colors)
+
+    n, bins, patches = ax.hist(value, normed=0, histtype="bar", label=nam, color=colors)
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)
