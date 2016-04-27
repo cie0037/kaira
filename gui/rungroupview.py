@@ -324,12 +324,10 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 x +=1
 
-        average, divergence = data_from_operation("transitions")
-
         lenght = len(tables)
         return ("Transitions time",
                 charts.group_boxplot_transitions_chart(
-                    names, group_names, group_values, lenght, average, divergence,
+                    names, group_names, group_values, lenght,
                         "Transitions time", "Transitions", "Time[ms]"))
 
     def group_count_tokens_prepare(self, list_sources):
@@ -378,12 +376,10 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 x +=1
 
-        average, divergence = data_from_operation("tokens")
-
         lenght = len(tables)
         return ("Number of tokens in places",
                     charts.group_boxplot_data_chart(
-                        names, group_names, group_values, lenght, average, divergence,
+                        names, group_names, group_values, lenght,
                             "Number of tokens in places", "Places", "Count"))
 
     def group_transitions_processes_prepare(self, list_sources):
@@ -431,12 +427,10 @@ class RunGroupView(gtk.VBox, EventSource):
             else:
                 x +=1
 
-        average, divergence = data_from_operation("processes")
-
         lenght = len(tables)
         return ("Processes and transitions",
                     charts.group_histogram_chart(
-                        names, group_names, group_values, lenght, average, divergence,
+                        names, group_names, group_values, lenght,
                             "Processes and transitions", "Duration [ms]", "Count"))
 
     def transitions_prepare(self, list_sources):
@@ -660,8 +654,6 @@ class RunGroupView(gtk.VBox, EventSource):
         group_transitions =  []
         group_places = []
 
-        average_data, divergence_data = data_from_operation(flag)
-
         for source in list_sources:
             tracelogs.append(source.data)
             names.append(os.path.basename(source.name))
@@ -681,6 +673,3 @@ class RunGroupView(gtk.VBox, EventSource):
             return names, tables, group_transitions
         if flag == "tokens":
             return names, tables, group_processes, group_places
-
-def data_from_operation(flag):
-    return extensions.data(flag)

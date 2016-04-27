@@ -953,7 +953,7 @@ def _register_new_types_charts():
 
 _register_new_types_charts()
 
-def group_boxplot_transitions_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def group_boxplot_transitions_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
 
@@ -964,21 +964,6 @@ def group_boxplot_transitions_chart(nam, names, values, lenght, average, diverge
     ax = figure.add_subplot(111, projection=BasicChart.name)
     colors = [cm.hsv(float(i)/lenght) for i in xrange(lenght)]*(len(values)/lenght)
     bplot = ax.boxplot(values, notch=1, vert =True, patch_artist=True)
-
-    if len(average) > 0:
-        t,p = [],[]
-        for i, j in zip([b for b in xrange(len(values))], [a for a in average[0]]):
-            t.append(i)
-            p.append(j)
-        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
-
-    if len(divergence) > 0:
-        if(sum(divergence[0]))> 0:
-            t,p = [],[]
-        for i, j in zip([b for b in xrange(len(values))], [a for a in divergence[0]]):
-            t.append(i)
-            p.append(j)
-            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
     for patch, color in zip(bplot['boxes'],colors):
         patch.set_facecolor(color)
@@ -1032,7 +1017,7 @@ def boxplot_transitions_chart(nam, names, values, lenght, title="", xlabel="", y
 
     return ChartWidget(figure)
 
-def group_boxplot_data_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def group_boxplot_data_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
 
@@ -1048,21 +1033,6 @@ def group_boxplot_data_chart(nam, names, values, lenght, average, divergence, ti
         value.append(y)
 
     bplot = ax.boxplot(value, notch=1, patch_artist=True)
-
-    if len(average) > 0:
-        t,p = [],[]
-        for i, j in zip([b for b in xrange(len(values))], [a for a in average[0]]):
-            t.append(i)
-            p.append(j)
-        ax.plot(t,p, 'r--', lw = 2, label ="average", color = "#000000")
-
-    if len(divergence) > 0:
-        if(sum(divergence[0]))> 0:
-            t,p = [],[]
-        for i, j in zip([b for b in xrange(len(values))], [a for a in divergence[0]]):
-            t.append(i)
-            p.append(j)
-            ax.plot(t,p, 'r--', lw = 2, label = "divergence", color = "#f00000")
 
     for patch, col in zip(bplot['boxes'], colors):
         patch.set_facecolor(col)
@@ -1141,7 +1111,7 @@ def boxplot_data_chart(nam, names, values, lenght, title="", xlabel="", ylabel="
 
     return ChartWidget(figure)
 
-def group_histogram_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def group_histogram_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
 
@@ -1183,7 +1153,7 @@ def group_histogram_chart(nam, names, values, lenght, average, divergence, title
 
     return ChartWidget(figure)
 
-def histogram_chart(nam, names, values, lenght, average, divergence, title="", xlabel="", ylabel=""):
+def histogram_chart(nam, names, values, lenght, title="", xlabel="", ylabel=""):
     if not names or not values or lenght == 0:
         return _empty_chart(title, xlabel, ylabel)
 
@@ -1193,8 +1163,7 @@ def histogram_chart(nam, names, values, lenght, average, divergence, title="", x
 
     ax = figure.add_subplot(111, projection=BasicChart.name)
 
-    colors = []#[cm.hsv(float(i)/1) for i in xrange(lenght)]*(len(values)/1)
-
+    colors = []
     value = []
     v = []
     x = 0
@@ -1212,7 +1181,7 @@ def histogram_chart(nam, names, values, lenght, average, divergence, title="", x
     colors.append(color)
     colors = colors * len(value)
 
-    n, bins, patches = ax.hist(value, normed=0, histtype="bar", label=nam, color=colors)
+    n, bins, patches = ax.hist(values, normed=0, histtype="bar", label=nam, color=colors)
 
     for label in ax.xaxis.get_ticklabels():
         label.set_rotation(-35)

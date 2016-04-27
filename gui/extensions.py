@@ -35,14 +35,6 @@ import utils
 
 operations = {} # the list of all loaded operations
 
-# data from group opration
-p_average = []
-p_divergence = []
-t_average = []
-t_divergence = []
-c_average = []
-c_divergence = []
-
 # *****************************************************************************
 # Sources
 
@@ -717,19 +709,6 @@ class Operation(object, EventSource):
             sources = [results]
         for source in sources:
             if  not isinstance(source, Source):
-                if len(p_average) > 0:
-                    del p_average[:]
-                    del p_divergence[:]
-                    del t_average[:]
-                    del t_divergence [:]
-                    del c_average[:]
-                    del c_divergence[:]
-                p_average.append(sources[0])
-                p_divergence.append(sources[1])
-                t_average.append(sources[2])
-                t_divergence.append(sources[3])
-                c_average.append(sources[4])
-                c_divergence.append(sources[5])
                 break
             else:
                 app.sources_repository.add(source)
@@ -1490,7 +1469,8 @@ class GroupView(gtk.Alignment, EventSource):
 
             if self.tabview is not None:
                 for name, item in self.view.group_views:
-                    self.view.remove(item)
+                    if len(self.view) != 0: 
+                        self.view.remove(item)
                 self.view.emit_event("add-source", source)
 
     def _detach_from_group(self):
@@ -1690,11 +1670,3 @@ def load_extensions():
             # the file is *.py and it exists
             imp.load_source("extension_" + name, fullname)
     sys.path.remove(paths.EXTENSIONS_DIR)
-
-def data(flag):
-    if flag == "processes":
-        return p_average, p_divergence
-    if flag == "transitions":
-        return t_average, t_divergence
-    if flag == "tokens":
-        return c_average, c_divergence
